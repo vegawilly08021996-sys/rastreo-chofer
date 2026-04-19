@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Monitor de Choferes</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: sans-serif; background: #f0f4f8; overflow: hidden; }
+  #topbar { background: #1e3a5f; color: #fff; padding: 10px 16px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px; z-index: 2000; position: relative; }
+  #topbar h1 { font-size: 15px; font-weight: 600; }
+  #topbar a { color: #93c5fd; font-size: 12px; text-decoration: none; }
+  .top-badges { display: flex; gap: 5px; flex-wrap: wrap; align-items: center; }
+  .cbadge { font-size: 11px; padding: 3px 10px; border-radius: 12px; font-weight: 600; opacity: 0.35; transition: opacity 0.3s; cursor: pointer; }
+  .cbadge.on { opacity: 1; }
+  .c1b{background:#93c5fd;color:#1e3a5f} .c2b{background:#86efac;color:#14532d}
+  .c3b{background:#fcd34d;color:#78350f} .c4b{background:#f9a8d4;color:#831843}
+  #btnHistorial { background: #fff; color: #1e3a5f; border: none; border-radius: 8px; padding: 4px 12px; font-size: 12px; font-weight: 600; cursor: pointer; }
+  #map { height: calc(100vh - 50px); width: 100%; }
+  #panel { position: absolute; top: 60px; left: 10px; z-index: 1000; display: flex; flex-direction: column; gap: 7px; width: 215px; }
+  .chofer-card { background: #fff; border-radius: 10px; padding: 9px 11px; box-shadow: 0 1px 6px rgba(0,0,0,0.12); border-left: 4px solid #ccc; opacity: 0.45; transition: opacity 0.3s, background 0.3s; cursor: pointer; }
+  .chofer-card.on { opacity: 1; }
+  .chofer-card.parado { background: #fff7ed; border-left-color: #f97316 !important; animation: parpadeo 1s infinite; }
+  @keyframes parpadeo { 0%,100%{opacity:1} 50%{opacity:0.7} }
+  .chofer-card h4 { font-size: 13px; font-weight: 600; margin-bottom: 3px; display: flex; align-items: center; gap: 5px; }
+  .chofer-card .nombre { font-size: 11px; color: #666; margin-bottom: 4px; }
+  .chofer-card .row { display: flex; justify-content: space-between; font-size: 11px; color: #555; padding: 2px 0; }
+  .chofer-card .row span:last-child { font-weight: 600; color: #111; }
+  .dot-s { width: 8px; height: 8px; border-radius: 50%; background: #ccc; flex-shrink: 0; }
+  .dot-s.on { background: #22c55e; animation: pulse 1.5s infinite; }
+  .dot-s.parado { background: #f97316; animation: pulse 0.8s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+  .maxspd { font-size: 10px; color: #ef4444; font-weight: 600; }
+  .alerta-parado { background: #fff7ed; border: 1px solid #fed7aa; border-radius: 6px; padding: 4px 8px; font-size: 11px; color: #c2410c; margin-top: 4px; display: none; font-weight: 600; }
+  .disconnected-alert { background: #fef2f2; border: 1px solid #fecaca; border-radius: 6px; padding: 4px 8px; font-size: 11px; color: #dc2626; margin-top: 3px; display: none; }
+  #btnTodos { position: absolute; bottom: 20px; right: 16px; z-index: 1000; background: #2563eb; color: #fff; border: none; border-radius: 8px; padding: 10px 16px; font-size: 13px; font-weight: 600; cursor: pointer; }
+  #btnSilenciar { position: absolute; bottom: 20px; right: 130px; z-index: 1000; background: #f97316; color: #fff; border: none; border-radius: 8px; padding: 10px 16px; font-size: 13px; font-weight: 600; cursor: pointer; display: none; }
+  .toast { position: absolute; top: 60px; right: 10px; z-index: 3000; padding: 12px 16px; border-radius: 10px; font-size: 13px; font-weight: 600; display: none; max-width: 240px; }
+  .toast-warn { background: #f97316; color: #fff; }
+  .toast-danger { background: #dc2626; color: #fff; }
+
+  /* Panel historial */
+  #historialPanel { position: absolute; top: 0; right: 0; width: 360px; height: 100vh; background: #fff; z-index: 4000; box-shadow: -4px 0 20px rgba(0,0,0,0.15); display: none; flex-direction: column; }
+  #historialPanel.open { display: flex; }
+  .hist-header { background: #1e3a5f; color: #fff; padding: 14px 16px; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
+  .hist-header h2 { font-size: 15px; font-weight: 600; }
+  .hist-close { background: none; border: none; color: #fff; font-size: 20px; cursor: pointer; }
+  .hist-tabs { display: flex; border-bottom: 1px solid #e5e7eb; flex-shrink: 0; }
+  .hist-tab { flex: 1; padding: 10px 4px; text-align: center; font-size: 12px; font-weight: 600; cursor: pointer; color: #6b7280; border-bottom: 2px solid transparent; }
+  .hist-tab.active { color: #2563eb; border-bottom-color: #2563eb; }
+  .hist-body { flex: 1; overflow-y: auto; padding: 12px; }
+  .hist-day { font-size: 12px; font-weight: 700; color: #374151; margin: 10px 0 6px; padding-bottom: 4px; border-bottom: 1px solid #f1f5f9; }
+  .hist-item { background: #f8fafc; border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; border-left: 3px solid #2563eb; }
+  .hist-item .hi-row { display: flex; justify-content: space-between; font-size: 12px; color: #555; margin-bottom: 3px; }
+  .hist-item .hi-row span:last-child { font-weight: 600; color: #111; }
+  .hist-item .hi-dist { font-size: 13px; font-weight: 700; color: #2563eb; margin-top: 4px; }
+  .hist-item button { margin-top: 6px; padding: 4px 10px; background: #eff6ff; color: #2563eb; border: 1px solid #bfdbfe; border-radius: 5px; font-size: 11px; font-weight: 600; cursor: pointer; }
+  .hist-item button:hover { background: #dbeafe; }
+  .hist-empty { text-align: center; color: #9ca3af; font-size: 13px; padding: 2rem; }
+  .hist-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+  .hist-stat { background: #f0f9ff; border-radius: 8px; padding: 10px; text-align: center; }
+  .hist-stat .val { font-size: 20px; font-weight: 700; color: #2563eb; }
+  .hist-stat .lbl { font-size: 11px; color: #6b7280; margin-top: 2px; }
+</style>
+</head>
+<body>
+
+<div id="topbar">
+  <div style="display:flex;align-items:center;gap:12px;">
+    <a href="index.html">← Inicio</a>
+    <h1>🗺️ Monitor de Choferes</h1>
+  </div>
+  <div class="top-badges">
+    <span class="cbadge c1b" id="b1">Chofer 1</span>
+    <span class="cbadge c2b" id="b2">Chofer 2</span>
+    <span class="cbadge c3b" id="b3">Chofer 3</span>
+    <span class="cbadge c4b" id="b4">Chofer 4</span>
+    <button id="btnHistorial" onclick="abrirHistorial()">📋 Historial</button>
+  </div>
+</div>
+
+<div id="map"></div>
+<div class="toast" id="toast"></div>
+
+<div id="panel">
+  <div class="chofer-card" id="card1" style="border-left-color:#3b82f6;" onclick="centrarChofer(0)">
+    <h4><span class="dot-s" id="dot1"></span>Chofer 1</h4>
+    <div class="nombre" id="nombre1">Sin nombre</div>
+    <div class="row"><span>Velocidad</span><span id="spd1">--</span></div>
+    <div class="row"><span>Vel. máxima</span><span class="maxspd" id="maxspd1">--</span></div>
+    <div class="row"><span>Tiempo activo</span><span id="time1">--</span></div>
+    <div class="row"><span>Actualizado</span><span id="upd1">--</span></div>
+    <div class="alerta-parado" id="parado1">⚠️ Detenido más de 10 min</div>
+    <div class="disconnected-alert" id="alert1">🔴 Desconectado</div>
+  </div>
+  <div class="chofer-card" id="card2" style="border-left-color:#22c55e;" onclick="centrarChofer(1)">
+    <h4><span class="dot-s" id="dot2"></span>Chofer 2</h4>
+    <div class="nombre" id="nombre2">Sin nombre</div>
+    <div class="row"><span>Velocidad</span><span id="spd2">--</span></div>
+    <div class="row"><span>Vel. máxima</span><span class="maxspd" id="maxspd2">--</span></div>
+    <div class="row"><span>Tiempo activo</span><span id="time2">--</span></div>
+    <div class="row"><span>Actualizado</span><span id="upd2">--</span></div>
+    <div class="alerta-parado" id="parado2">⚠️ Detenido más de 10 min</div>
+    <div class="disconnected-alert" id="alert2">🔴 Desconectado</div>
+  </div>
+  <div class="chofer-card" id="card3" style="border-left-color:#f59e0b;" onclick="centrarChofer(2)">
+    <h4><span class="dot-s" id="dot3"></span>Chofer 3</h4>
+    <div class="nombre" id="nombre3">Sin nombre</div>
+    <div class="row"><span>Velocidad</span><span id="spd3">--</span></div>
+    <div class="row"><span>Vel. máxima</span><span class="maxspd" id="maxspd3">--</span></div>
+    <div class="row"><span>Tiempo activo</span><span id="time3">--</span></div>
+    <div class="row"><span>Actualizado</span><span id="upd3">--</span></div>
+    <div class="alerta-parado" id="parado3">⚠️ Detenido más de 10 min</div>
+    <div class="disconnected-alert" id="alert3">🔴 Desconectado</div>
+  </div>
+  <div class="chofer-card" id="card4" style="border-left-color:#ec4899;" onclick="centrarChofer(3)">
+    <h4><span class="dot-s" id="dot4"></span>Chofer 4</h4>
+    <div class="nombre" id="nombre4">Sin nombre</div>
+    <div class="row"><span>Velocidad</span><span id="spd4">--</span></div>
+    <div class="row"><span>Vel. máxima</span><span class="maxspd" id="maxspd4">--</span></div>
+    <div class="row"><span>Tiempo activo</span><span id="time4">--</span></div>
+    <div class="row"><span>Actualizado</span><span id="upd4">--</span></div>
+    <div class="alerta-parado" id="parado4">⚠️ Detenido más de 10 min</div>
+    <div class="disconnected-alert" id="alert4">🔴 Desconectado</div>
+  </div>
+</div>
+
+<button id="btnSilenciar" onclick="silenciarAlarma()">🔇 Silenciar</button>
+<button id="btnTodos" onclick="centrarTodos()">Ver todos</button>
+
+<!-- Panel historial -->
+<div id="historialPanel">
+  <div class="hist-header">
+    <h2>📋 Historial de recorridos</h2>
+    <button class="hist-close" onclick="cerrarHistorial()">✕</button>
+  </div>
+  <div class="hist-tabs" id="histTabs">
+    <div class="hist-tab active" onclick="verTabChofer(0)" id="htab1">Chofer 1</div>
+    <div class="hist-tab" onclick="verTabChofer(1)" id="htab2">Chofer 2</div>
+    <div class="hist-tab" onclick="verTabChofer(2)" id="htab3">Chofer 3</div>
+    <div class="hist-tab" onclick="verTabChofer(3)" id="htab4">Chofer 4</div>
+  </div>
+  <div class="hist-body" id="histBody"></div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getDatabase, ref, onValue, push, set } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyCGTk3_Ox56EdkC1g-lYaPUhKxGiCLXiX4",
+  databaseURL: "https://rastreo-chofer-70dac-default-rtdb.firebaseio.com"
+};
+
+const map = L.map('map').setView([-17.7863, -63.1812], 13);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '© OpenStreetMap contributors'
+}).addTo(map);
+
+const colores = ['#3b82f6','#22c55e','#f59e0b','#ec4899'];
+const markers = [null,null,null,null];
+const polylines = [null,null,null,null];
+const histPolylines = [];
+const historiales = [[],[],[],[]];
+const maxSpeeds = [0,0,0,0];
+const startTimes = [null,null,null,null];
+const wasActive = [false,false,false,false];
+const lastMovement = [null,null,null,null];
+const lastPositions = [null,null,null,null];
+const paradoAlertado = [false,false,false,false];
+const nombresDefault = ['Chofer 1','Chofer 2','Chofer 3','Chofer 4'];
+const nombresActuales = ['Chofer 1','Chofer 2','Chofer 3','Chofer 4'];
+const totalDistancias = [0,0,0,0];
+let historialData = [[],[],[],[]];
+let tabActiva = 0;
+
+let audioCtx = null, alarmaInterval = null, silenciado = false;
+function getAudioCtx() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  return audioCtx;
+}
+function tocarAlarma() {
+  if (silenciado) return;
+  try {
+    const ctx = getAudioCtx();
+    const seq = [880,0,880,0,1100];
+    let t = ctx.currentTime;
+    seq.forEach(f => {
+      if (f > 0) {
+        const o = ctx.createOscillator(), g = ctx.createGain();
+        o.connect(g); g.connect(ctx.destination);
+        o.frequency.value = f; o.type = 'sine';
+        g.gain.setValueAtTime(0.4, t);
+        g.gain.exponentialRampToValueAtTime(0.001, t+0.25);
+        o.start(t); o.stop(t+0.25);
+      }
+      t += 0.3;
+    });
+  } catch(e) {}
+}
+function iniciarAlarma() {
+  if (alarmaInterval) return;
+  tocarAlarma();
+  document.getElementById('btnSilenciar').style.display = 'block';
+  alarmaInterval = setInterval(() => { if (!silenciado) tocarAlarma(); }, 30000);
+}
+function detenerAlarma() {
+  clearInterval(alarmaInterval); alarmaInterval = null;
+  document.getElementById('btnSilenciar').style.display = 'none';
+}
+window.silenciarAlarma = function() {
+  silenciado = true; detenerAlarma();
+  setTimeout(() => { silenciado = false; }, 300000);
+};
+
+function showToast(msg, tipo) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.className = 'toast '+tipo; t.style.display = 'block';
+  setTimeout(() => { t.style.display = 'none'; }, 5000);
+}
+function tiempoActivo(ts) {
+  if (!ts) return '--';
+  const s = Math.floor((Date.now()-ts)/1000);
+  const h = Math.floor(s/3600), m = Math.floor((s%3600)/60);
+  return (h>0?h+'h ':'')+m+'min';
+}
+function calcDistKm(lat1,lng1,lat2,lng2) {
+  const R=6371, dLat=(lat2-lat1)*Math.PI/180, dLng=(lng2-lng1)*Math.PI/180;
+  const a=Math.sin(dLat/2)**2+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+}
+function formatDist(km) {
+  return km < 1 ? Math.round(km*1000)+'m' : km.toFixed(1)+'km';
+}
+function fechaHoy() {
+  return new Date().toLocaleDateString('es-BO',{day:'2-digit',month:'2-digit',year:'numeric'});
+}
+
+setInterval(() => {
+  for (let i=0;i<4;i++) {
+    if (startTimes[i]) document.getElementById('time'+(i+1)).textContent = tiempoActivo(startTimes[i]);
+    if (lastMovement[i] && wasActive[i]) {
+      const mins = Math.floor((Date.now()-lastMovement[i])/60000);
+      if (mins>=10 && !paradoAlertado[i]) {
+        paradoAlertado[i]=true;
+        document.getElementById('parado'+(i+1)).style.display='block';
+        document.getElementById('parado'+(i+1)).textContent='⚠️ Detenido '+mins+' min';
+        document.getElementById('card'+(i+1)).classList.add('parado');
+        document.getElementById('dot'+(i+1)).className='dot-s parado';
+        showToast('⚠️ '+nombresActuales[i]+' lleva '+mins+' min detenido','toast-warn');
+        iniciarAlarma();
+      } else if (mins>=10 && paradoAlertado[i]) {
+        document.getElementById('parado'+(i+1)).textContent='⚠️ Detenido '+mins+' min';
+      }
+    }
+  }
+}, 60000);
+
+function makeIcon(color, num) {
+  return L.divIcon({
+    html:`<div style="background:${color};border:3px solid #fff;border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:13px;box-shadow:0 2px 8px rgba(0,0,0,0.3)">${num}</div>`,
+    iconSize:[28,28],iconAnchor:[14,14],className:''
+  });
+}
+
+const app = initializeApp(FIREBASE_CONFIG,'monitor');
+const db = getDatabase(app);
+
+for (let i=1;i<=4;i++) {
+  const idx=i-1;
+  const locRef=ref(db,'choferes/chofer'+i);
+  onValue(locRef, snap => {
+    const data=snap.val();
+    if (!data||!data.lat) return;
+    const latlng=[data.lat,data.lng];
+    const activo=data.activo===true;
+    const nombre=data.nombre||nombresDefault[idx];
+    nombresActuales[idx]=nombre;
+
+    if (lastPositions[idx]) {
+      const dist=calcDistKm(lastPositions[idx][0],lastPositions[idx][1],data.lat,data.lng);
+      if (dist>0.005) {
+        totalDistancias[idx]+=dist;
+        lastMovement[idx]=Date.now();
+        if (paradoAlertado[idx]) {
+          paradoAlertado[idx]=false;
+          document.getElementById('parado'+(i)).style.display='none';
+          document.getElementById('card'+i).classList.remove('parado');
+          document.getElementById('dot'+i).className='dot-s'+(activo?' on':'');
+          if (!paradoAlertado.some(v=>v)) detenerAlarma();
+        }
+      }
+    } else { lastMovement[idx]=Date.now(); }
+    lastPositions[idx]=[data.lat,data.lng];
+
+    if (!markers[idx]) {
+      markers[idx]=L.marker(latlng,{icon:makeIcon(colores[idx],i)}).addTo(map)
+        .bindPopup(`<b>${nombre}</b><br>Vel: ${data.speed} km/h`);
+    } else {
+      markers[idx].setLatLng(latlng);
+      markers[idx].getPopup().setContent(`<b>${nombre}</b><br>Vel: ${data.speed} km/h<br>${data.lat.toFixed(5)}, ${data.lng.toFixed(5)}`);
+    }
+
+    historiales[idx].push(latlng);
+    if (historiales[idx].length>500) historiales[idx].shift();
+    if (polylines[idx]) polylines[idx].remove();
+    polylines[idx]=L.polyline(historiales[idx],{color:colores[idx],weight:3,opacity:0.5}).addTo(map);
+
+    if (activo&&!wasActive[idx]) {
+      startTimes[idx]=data.timestamp;
+      historialData[idx].push({
+        fecha:fechaHoy(),
+        inicio:new Date(data.timestamp).toLocaleTimeString('es-BO'),
+        inicioTs:data.timestamp,
+        fin:null,
+        finTs:null,
+        distKm:0,
+        nombre:nombre,
+        ruta:[]
+      });
+    }
+    if (!activo&&wasActive[idx]) {
+      showToast('🔴 '+nombre+' se desconectó','toast-danger');
+      const sesion=historialData[idx][historialData[idx].length-1];
+      if (sesion&&!sesion.fin) {
+        sesion.fin=new Date().toLocaleTimeString('es-BO');
+        sesion.finTs=Date.now();
+        sesion.distKm=parseFloat(totalDistancias[idx].toFixed(2));
+        sesion.ruta=[...historiales[idx]];
+        guardarHistorial(idx, sesion);
+      }
+      startTimes[idx]=null;
+    }
+    wasActive[idx]=activo;
+
+    if (historialData[idx].length>0) {
+      const ses=historialData[idx][historialData[idx].length-1];
+      if (ses&&!ses.fin) {
+        ses.distKm=parseFloat(totalDistancias[idx].toFixed(2));
+        ses.ruta=[...historiales[idx]];
+      }
+    }
+
+    if (data.speed>maxSpeeds[idx]) maxSpeeds[idx]=data.speed;
+    document.getElementById('b'+i).textContent=nombre;
+    document.getElementById('b'+i).className='cbadge c'+i+'b'+(activo?' on':'');
+    if (!paradoAlertado[idx]) {
+      document.getElementById('dot'+i).className='dot-s'+(activo?' on':'');
+      document.getElementById('card'+i).className='chofer-card'+(activo?' on':'');
+    }
+    document.getElementById('nombre'+i).textContent=nombre;
+    document.getElementById('spd'+i).textContent=(data.speed||0)+' km/h';
+    document.getElementById('maxspd'+i).textContent=maxSpeeds[idx]+' km/h';
+    document.getElementById('time'+i).textContent=tiempoActivo(startTimes[idx]);
+    document.getElementById('upd'+i).textContent=new Date(data.timestamp).toLocaleTimeString('es-BO');
+    document.getElementById('alert'+i).style.display=activo?'none':'block';
+  });
+
+  const histRef=ref(db,'historial/chofer'+i);
+  onValue(histRef, snap => {
+    const data=snap.val();
+    if (!data) return;
+    const items=Object.values(data).sort((a,b)=>b.inicioTs-a.inicioTs);
+    const stored=items.filter(it=>it.fin);
+    historialData[idx]=[...stored, ...historialData[idx].filter(it=>!it.fin)];
+    if (tabActiva===idx) renderHistorial(idx);
+  });
+}
+
+function guardarHistorial(idx, sesion) {
+  try {
+    const hRef=ref(db,'historial/chofer'+(idx+1));
+    push(hRef, sesion);
+  } catch(e){}
+}
+
+window.abrirHistorial=function() {
+  document.getElementById('historialPanel').classList.add('open');
+  renderHistorial(tabActiva);
+};
+window.cerrarHistorial=function() {
+  document.getElementById('historialPanel').classList.remove('open');
+  histPolylines.forEach(p=>p.remove());
+  histPolylines.length=0;
+};
+window.verTabChofer=function(idx) {
+  tabActiva=idx;
+  document.querySelectorAll('.hist-tab').forEach((t,i)=>t.className='hist-tab'+(i===idx?' active':''));
+  renderHistorial(idx);
+};
+
+function renderHistorial(idx) {
+  const body=document.getElementById('histBody');
+  const sesiones=historialData[idx];
+  document.getElementById('htab'+(idx+1)).textContent=nombresActuales[idx];
+
+  if (!sesiones||sesiones.length===0) {
+    body.innerHTML='<div class="hist-empty">Sin recorridos registrados hoy</div>'; return;
+  }
+
+  const totalKm=sesiones.reduce((s,it)=>s+(it.distKm||0),0);
+  const totalMins=sesiones.reduce((s,it)=>{
+    if (it.inicioTs&&it.finTs) return s+Math.floor((it.finTs-it.inicioTs)/60000);
+    return s;
+  },0);
+  const h=Math.floor(totalMins/60), m=totalMins%60;
+
+  let html=`<div class="hist-stats">
+    <div class="hist-stat"><div class="val">${sesiones.length}</div><div class="lbl">Recorridos</div></div>
+    <div class="hist-stat"><div class="val">${totalKm.toFixed(1)} km</div><div class="lbl">Distancia total</div></div>
+    <div class="hist-stat"><div class="val">${h>0?h+'h ':''} ${m}min</div><div class="lbl">Tiempo total</div></div>
+    <div class="hist-stat"><div class="val">${maxSpeeds[idx]} km/h</div><div class="lbl">Vel. máxima</div></div>
+  </div>`;
+
+  const porFecha={};
+  sesiones.forEach(s=>{ if (!porFecha[s.fecha]) porFecha[s.fecha]=[]; porFecha[s.fecha].push(s); });
+
+  Object.entries(porFecha).forEach(([fecha,items])=>{
+    html+=`<div class="hist-day">📅 ${fecha}</div>`;
+    items.forEach((s,i)=>{
+      const dur=s.inicioTs&&s.finTs?Math.floor((s.finTs-s.inicioTs)/60000)+'min':'En curso';
+      html+=`<div class="hist-item">
+        <div class="hi-row"><span>Inicio</span><span>${s.inicio}</span></div>
+        <div class="hi-row"><span>Fin</span><span>${s.fin||'En curso'}</span></div>
+        <div class="hi-row"><span>Duración</span><span>${dur}</span></div>
+        <div class="hi-dist">📍 ${formatDist(s.distKm||0)}</div>
+        ${s.ruta&&s.ruta.length>1?`<button onclick="verRutaHistorial(${idx},${sesiones.indexOf(s)})">🗺️ Ver ruta en mapa</button>`:''}
+      </div>`;
+    });
+  });
+
+  body.innerHTML=html;
+}
+
+window.verRutaHistorial=function(idx,sesIdx) {
+  histPolylines.forEach(p=>p.remove());
+  histPolylines.length=0;
+  const ses=historialData[idx][sesIdx];
+  if (!ses||!ses.ruta||ses.ruta.length<2) return;
+  const p=L.polyline(ses.ruta,{color:colores[idx],weight:4,opacity:0.8,dashArray:'8,4'}).addTo(map);
+  histPolylines.push(p);
+  map.fitBounds(p.getBounds(),{padding:[40,40]});
+  cerrarHistorial();
+};
+
+window.centrarChofer=function(idx){ if(markers[idx]) map.setView(markers[idx].getLatLng(),16); };
+window.centrarTodos=function(){
+  const pts=markers.filter(m=>m!==null).map(m=>m.getLatLng());
+  if(pts.length>0) map.fitBounds(L.latLngBounds(pts),{padding:[50,50]});
+};
+</script>
+</body>
+</html>
