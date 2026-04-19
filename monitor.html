@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Monitor de Choferes</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: sans-serif; background: #f0f4f8; overflow: hidden; }
+  #topbar { background: #1e3a5f; color: #fff; padding: 10px 16px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px; z-index: 2000; position: relative; }
+  #topbar h1 { font-size: 15px; font-weight: 600; }
+  #topbar a { color: #93c5fd; font-size: 12px; text-decoration: none; }
+  .top-badges { display: flex; gap: 5px; flex-wrap: wrap; }
+  .cbadge { font-size: 11px; padding: 3px 10px; border-radius: 12px; font-weight: 600; opacity: 0.35; transition: opacity 0.3s; cursor: pointer; }
+  .cbadge.on { opacity: 1; }
+  .c1b{background:#93c5fd;color:#1e3a5f} .c2b{background:#86efac;color:#14532d}
+  .c3b{background:#fcd34d;color:#78350f} .c4b{background:#f9a8d4;color:#831843}
+  #map { height: calc(100vh - 50px); width: 100%; }
+  #panel { position: absolute; top: 60px; left: 10px; z-index: 1000; display: flex; flex-direction: column; gap: 7px; width: 215px; }
+  .chofer-card { background: #fff; border-radius: 10px; padding: 9px 11px; box-shadow: 0 1px 6px rgba(0,0,0,0.12); border-left: 4px solid #ccc; opacity: 0.45; transition: opacity 0.3s, background 0.3s; cursor: pointer; }
+  .chofer-card.on { opacity: 1; }
+  .chofer-card.parado { background: #fff7ed; border-left-color: #f97316 !important; animation: parpadeo 1s infinite; }
+  @keyframes parpadeo { 0%,100%{opacity:1} 50%{opacity:0.7} }
+  .chofer-card:hover { box-shadow: 0 2px 10px rgba(0,0,0,0.18); }
+  .chofer-card h4 { font-size: 13px; font-weight: 600; margin-bottom: 3px; display: flex; align-items: center; gap: 5px; }
+  .chofer-card .nombre { font-size: 11px; color: #666; margin-bottom: 4px; }
+  .chofer-card .row { display: flex; justify-content: space-between; font-size: 11px; color: #555; padding: 2px 0; }
+  .chofer-card .row span:last-child { font-weight: 600; color: #111; }
+  .dot-s { width: 8px; height: 8px; border-radius: 50%; background: #ccc; flex-shrink: 0; }
+  .dot-s.on { background: #22c55e; animation: pulse 1.5s infinite; }
+  .dot-s.parado { background: #f97316; animation: pulse 0.8s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+  .maxspd { font-size: 10px; color: #ef4444; font-weight: 600; }
+  .alerta-parado { background: #fff7ed; border: 1px solid #fed7aa; border-radius: 6px; padding: 4px 8px; font-size: 11px; color: #c2410c; margin-top: 4px; display: none; font-weight: 600; }
+  .disconnected-alert { background: #fef2f2; border: 1px solid #fecaca; border-radius: 6px; padding: 4px 8px; font-size: 11px; color: #dc2626; margin-top: 3px; display: none; }
+  #btnTodos { position: absolute; bottom: 20px; right: 16px; z-index: 1000; background: #2563eb; color: #fff; border: none; border-radius: 8px; padding: 10px 16px; font-size: 13px; font-weight: 600; cursor: pointer; }
+  #btnTodos:hover { background: #1d4ed8; }
+  #btnSilenciar { position: absolute; bottom: 20px; right: 130px; z-index: 1000; background: #f97316; color: #fff; border: none; border-radius: 8px; padding: 10px 16px; font-size: 13px; font-weight: 600; cursor: pointer; display: none; }
+  .toast { position: absolute; top: 60px; right: 10px; z-index: 3000; padding: 12px 16px; border-radius: 10px; font-size: 13px; font-weight: 600; display: none; max-width: 240px; }
+  .toast-warn { background: #f97316; color: #fff; }
+  .toast-danger { background: #dc2626; color: #fff; }
+</style>
+</head>
+<body>
+
+<div id="topbar">
+  <div style="display:flex;align-items:center;gap:12px;">
+    <a href="index.html">← Inicio</a>
+    <h1>🗺️ Monitor de Choferes</h1>
+  </div>
+  <div class="top-badges">
+    <span class="cbadge c1b" id="b1">Chofer 1</span>
+    <span class="cbadge c2b" id="b2">Chofer 2</span>
+    <span class="cbadge c3b" id="b3">Chofer 3</span>
+    <span class="cbadge c4b" id="b4">Chofer 4</span>
+  </div>
+</div>
+
+<div id="map"></div>
+<div class="toast" id="toast"></div>
+
+<div id="panel">
+  <div class="chofer-card" id="card1" style="border-left-color:#3b82f6;" onclick="centrarChofer(0)">
+    <h4><span class="dot-s" id="dot1"></span>Chofer 1</h4>
+    <div class="nombre" id="nombre1">Sin nombre</div>
+    <div class="row"><span>Velocidad</span><span id="spd1">--</span></div>
+    <div class="row"><span>Vel. máxima</span><span class="maxspd" id="maxspd1">--</span></div>
+    <div class="row"><span>Tiempo activo</span><span id="time1">--</span></div>
+    <div class="row"><span>Actualizado</span><span id="upd1">--</span></div>
+    <div class="alerta-parado" id="parado1">⚠️ Detenido más de 10 min</div>
+    <div class="disconnected-alert" id="alert1">🔴 Desconectado</div>
+  </div>
+  <div class="chofer-card" id="card2" style="border-left-color:#22c55e;" onclick="centrarChofer(1)">
+    <h4><span class="dot-s" id="dot2"></span>Chofer 2</h4>
+    <div class="nombre" id="nombre2">Sin nombre</div>
+    <div class="row"><span>Velocidad</span><span id="spd2">--</span></div>
+    <div class="row"><span>Vel. máxima</span><span class="maxspd" id="maxspd2">--</span></div>
+    <div class="row"><span>Tiempo activo</span><span id="time2">--</span></div>
+    <div class="row"><span>Actualizado</span><span id="upd2">--</span></div>
+    <div class="alerta-parado" id="parado2">⚠️ Detenido más de 10 min</div>
+    <div class="disconnected-alert" id="alert2">🔴 Desconectado</div>
+  </div>
+  <div class="chofer-card" id="card3" style="border-left-color:#f59e0b;" onclick="centrarChofer(2)">
+    <h4><span class="dot-s" id="dot3"></span>Chofer 3</h4>
+    <div class="nombre" id="nombre3">Sin nombre</div>
+    <div class="row"><span>Velocidad</span><span id="spd3">--</span></div>
+    <div class="row"><span>Vel. máxima</span><span class="maxspd" id="maxspd3">--</span></div>
+    <div class="row"><span>Tiempo activo</span><span id="time3">--</span></div>
+    <div class="row"><span>Actualizado</span><span id="upd3">--</span></div>
+    <div class="alerta-parado" id="parado3">⚠️ Detenido más de 10 min</div>
+    <div class="disconnected-alert" id="alert3">🔴 Desconectado</div>
+  </div>
+  <div class="chofer-card" id="card4" style="border-left-color:#ec4899;" onclick="centrarChofer(3)">
+    <h4><span class="dot-s" id="dot4"></span>Chofer 4</h4>
+    <div class="nombre" id="nombre4">Sin nombre</div>
+    <div class="row"><span>Velocidad</span><span id="spd4">--</span></div>
+    <div class="row"><span>Vel. máxima</span><span class="maxspd" id="maxspd4">--</span></div>
+    <div class="row"><span>Tiempo activo</span><span id="time4">--</span></div>
+    <div class="row"><span>Actualizado</span><span id="upd4">--</span></div>
+    <div class="alerta-parado" id="parado4">⚠️ Detenido más de 10 min</div>
+    <div class="disconnected-alert" id="alert4">🔴 Desconectado</div>
+  </div>
+</div>
+
+<button id="btnSilenciar" onclick="silenciarAlarma()">🔇 Silenciar alarma</button>
+<button id="btnTodos" onclick="centrarTodos()">Ver todos</button>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyCGTk3_Ox56EdkC1g-lYaPUhKxGiCLXiX4",
+  databaseURL: "https://rastreo-chofer-70dac-default-rtdb.firebaseio.com"
+};
+
+const map = L.map('map').setView([-17.7863, -63.1812], 13);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '© OpenStreetMap contributors'
+}).addTo(map);
+
+const colores = ['#3b82f6','#22c55e','#f59e0b','#ec4899'];
+const markers = [null,null,null,null];
+const polylines = [null,null,null,null];
+const historiales = [[],[],[],[]];
+const maxSpeeds = [0,0,0,0];
+const startTimes = [null,null,null,null];
+const wasActive = [false,false,false,false];
+const lastMovement = [null,null,null,null];
+const lastPositions = [null,null,null,null];
+const paradoAlertado = [false,false,false,false];
+const nombresDefault = ['Chofer 1','Chofer 2','Chofer 3','Chofer 4'];
+
+let audioCtx = null;
+let alarmaInterval = null;
+let silenciado = false;
+
+function getAudioCtx() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  return audioCtx;
+}
+
+function tocarAlarma() {
+  if (silenciado) return;
+  try {
+    const ctx = getAudioCtx();
+    const secuencia = [880, 0, 880, 0, 1100];
+    let tiempo = ctx.currentTime;
+    secuencia.forEach(freq => {
+      if (freq > 0) {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain); gain.connect(ctx.destination);
+        osc.frequency.value = freq;
+        osc.type = 'sine';
+        gain.gain.setValueAtTime(0.4, tiempo);
+        gain.gain.exponentialRampToValueAtTime(0.001, tiempo + 0.25);
+        osc.start(tiempo); osc.stop(tiempo + 0.25);
+      }
+      tiempo += 0.3;
+    });
+  } catch(e) {}
+}
+
+function iniciarAlarmaRepetida() {
+  if (alarmaInterval) return;
+  tocarAlarma();
+  document.getElementById('btnSilenciar').style.display = 'block';
+  alarmaInterval = setInterval(() => { if (!silenciado) tocarAlarma(); }, 30000);
+}
+
+function detenerAlarma() {
+  clearInterval(alarmaInterval);
+  alarmaInterval = null;
+  document.getElementById('btnSilenciar').style.display = 'none';
+}
+
+window.silenciarAlarma = function() {
+  silenciado = true;
+  detenerAlarma();
+  setTimeout(() => { silenciado = false; }, 300000);
+};
+
+function showToast(msg, tipo) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast ' + tipo;
+  t.style.display = 'block';
+  setTimeout(() => { t.style.display = 'none'; }, 5000);
+}
+
+function tiempoActivo(startTs) {
+  if (!startTs) return '--';
+  const s = Math.floor((Date.now() - startTs) / 1000);
+  const h = Math.floor(s/3600), m = Math.floor((s%3600)/60);
+  return (h > 0 ? h+'h ' : '') + m+'min';
+}
+
+setInterval(() => {
+  for (let i = 0; i < 4; i++) {
+    if (startTimes[i]) document.getElementById('time'+(i+1)).textContent = tiempoActivo(startTimes[i]);
+    if (lastMovement[i] && wasActive[i]) {
+      const mins = Math.floor((Date.now() - lastMovement[i]) / 60000);
+      const nombre = document.getElementById('nombre'+(i+1)).textContent;
+      if (mins >= 10 && !paradoAlertado[i]) {
+        paradoAlertado[i] = true;
+        document.getElementById('parado'+(i+1)).style.display = 'block';
+        document.getElementById('parado'+(i+1)).textContent = '⚠️ Detenido ' + mins + ' min';
+        document.getElementById('card'+(i+1)).classList.add('parado');
+        document.getElementById('dot'+(i+1)).className = 'dot-s parado';
+        showToast('⚠️ ' + nombre + ' lleva ' + mins + ' min detenido', 'toast-warn');
+        iniciarAlarmaRepetida();
+      } else if (mins >= 10 && paradoAlertado[i]) {
+        document.getElementById('parado'+(i+1)).textContent = '⚠️ Detenido ' + mins + ' min';
+      }
+    }
+  }
+}, 60000);
+
+function makeIcon(color, num) {
+  return L.divIcon({
+    html: `<div style="background:${color};border:3px solid #fff;border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:13px;box-shadow:0 2px 8px rgba(0,0,0,0.3)">${num}</div>`,
+    iconSize:[28,28], iconAnchor:[14,14], className:''
+  });
+}
+
+const app = initializeApp(FIREBASE_CONFIG, 'monitor');
+const db = getDatabase(app);
+
+for (let i = 1; i <= 4; i++) {
+  const idx = i - 1;
+  const locRef = ref(db, 'choferes/chofer' + i);
+  onValue(locRef, snap => {
+    const data = snap.val();
+    if (!data || !data.lat) return;
+
+    const latlng = [data.lat, data.lng];
+    const activo = data.activo === true;
+    const nombre = data.nombre || nombresDefault[idx];
+
+    if (lastPositions[idx]) {
+      const dist = Math.sqrt(
+        Math.pow(data.lat - lastPositions[idx][0], 2) +
+        Math.pow(data.lng - lastPositions[idx][1], 2)
+      );
+      if (dist > 0.00008) {
+        lastMovement[idx] = Date.now();
+        if (paradoAlertado[idx]) {
+          paradoAlertado[idx] = false;
+          document.getElementById('parado'+(i)).style.display = 'none';
+          document.getElementById('card'+i).classList.remove('parado');
+          document.getElementById('dot'+i).className = 'dot-s' + (activo ? ' on' : '');
+          const hayOtroParado = paradoAlertado.some(v => v);
+          if (!hayOtroParado) detenerAlarma();
+        }
+      }
+    } else {
+      lastMovement[idx] = Date.now();
+    }
+    lastPositions[idx] = [data.lat, data.lng];
+
+    if (!markers[idx]) {
+      markers[idx] = L.marker(latlng, { icon: makeIcon(colores[idx], i) }).addTo(map)
+        .bindPopup(`<b>${nombre}</b><br>Vel: ${data.speed} km/h`);
+    } else {
+      markers[idx].setLatLng(latlng);
+      markers[idx].getPopup().setContent(`<b>${nombre}</b><br>Vel: ${data.speed} km/h<br>${data.lat.toFixed(5)}, ${data.lng.toFixed(5)}`);
+    }
+
+    historiales[idx].push(latlng);
+    if (historiales[idx].length > 300) historiales[idx].shift();
+    if (polylines[idx]) polylines[idx].remove();
+    polylines[idx] = L.polyline(historiales[idx], { color: colores[idx], weight: 3, opacity: 0.5 }).addTo(map);
+
+    if (activo && !wasActive[idx]) startTimes[idx] = data.timestamp;
+    if (!activo && wasActive[idx]) {
+      showToast('🔴 ' + nombre + ' se desconectó', 'toast-danger');
+      startTimes[idx] = null;
+    }
+    wasActive[idx] = activo;
+
+    if (data.speed > maxSpeeds[idx]) maxSpeeds[idx] = data.speed;
+
+    document.getElementById('b'+i).textContent = nombre;
+    document.getElementById('b'+i).className = 'cbadge c'+i+'b' + (activo ? ' on' : '');
+    if (!paradoAlertado[idx]) {
+      document.getElementById('dot'+i).className = 'dot-s' + (activo ? ' on' : '');
+      document.getElementById('card'+i).className = 'chofer-card' + (activo ? ' on' : '');
+    }
+    document.getElementById('nombre'+i).textContent = nombre;
+    document.getElementById('spd'+i).textContent = (data.speed || 0) + ' km/h';
+    document.getElementById('maxspd'+i).textContent = maxSpeeds[idx] + ' km/h';
+    document.getElementById('time'+i).textContent = tiempoActivo(startTimes[idx]);
+    document.getElementById('upd'+i).textContent = new Date(data.timestamp).toLocaleTimeString('es-BO');
+    document.getElementById('alert'+i).style.display = activo ? 'none' : 'block';
+  });
+}
+
+window.centrarChofer = function(idx) {
+  if (markers[idx]) map.setView(markers[idx].getLatLng(), 16);
+};
+window.centrarTodos = function() {
+  const puntos = markers.filter(m => m !== null).map(m => m.getLatLng());
+  if (puntos.length > 0) map.fitBounds(L.latLngBounds(puntos), { padding: [50,50] });
+};
+</script>
+</body>
+</html>
