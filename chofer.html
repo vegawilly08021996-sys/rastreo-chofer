@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Chofer GPS">
+<meta name="theme-color" content="#2563eb">
+<title>Chofer GPS</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: sans-serif; background: #f0f4f8; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 1rem; }
+  .card { background: #fff; border-radius: 16px; padding: 2rem; max-width: 380px; width: 100%; text-align: center; box-shadow: 0 2px 12px rgba(0,0,0,0.08); }
+  h1 { font-size: 20px; font-weight: 600; color: #1a1a1a; margin-bottom: 0.5rem; }
+  .sub { font-size: 14px; color: #666; margin-bottom: 1.5rem; }
+  .status-dot { width: 14px; height: 14px; border-radius: 50%; display: inline-block; margin-right: 8px; vertical-align: middle; }
+  .dot-off { background: #ccc; }
+  .dot-on { background: #22c55e; animation: pulse 1.5s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+  .status-text { font-size: 15px; font-weight: 500; color: #333; vertical-align: middle; }
+  #statusBox { background: #f8fafc; border-radius: 10px; padding: 1rem; margin: 1.2rem 0; }
+  .info-row { display: flex; justify-content: space-between; font-size: 13px; padding: 4px 0; color: #555; border-bottom: 1px solid #f1f5f9; }
+  .info-row span:last-child { font-weight: 500; color: #1a1a1a; }
+  button { width: 100%; padding: 14px; border-radius: 10px; border: none; font-size: 16px; font-weight: 600; cursor: pointer; transition: opacity 0.2s; margin-bottom: 8px; }
+  #btnStart { background: #2563eb; color: #fff; }
+  #btnStop { background: #ef4444; color: #fff; display: none; }
+  #btnInstall { background: #7c3aed; color: #fff; display: none; }
+  button:hover { opacity: 0.88; }
+  .select-box { background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 10px; padding: 1rem; margin-bottom: 1.2rem; text-align: left; }
+  .select-box h3 { font-size: 13px; font-weight: 600; color: #0369a1; margin-bottom: 8px; }
+  .select-box select { width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 15px; background: #fff; }
+  .error { color: #dc2626; font-size: 13px; margin-top: 8px; }
+  .update-time { font-size: 12px; color: #999; margin-top: 10px; }
+  .badge { display: inline-block; padding: 5px 16px; border-radius: 20px; font-size: 14px; font-weight: 600; margin-bottom: 14px; }
+  .tip { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 10px; font-size: 12px; color: #166534; margin-top: 10px; text-align: left; }
+  .wake-lock-status { font-size: 11px; color: #6b7280; margin-top: 6px; }
+</style>
+</head>
+<body>
+<div class="card">
+  <div style="font-size:40px; margin-bottom:12px;">🚗</div>
+  <h1>Chofer GPS</h1>
+  <p class="sub">Tu ubicación se enviará al monitor en tiempo real</p>
+
+  <div class="select-box">
+    <h3>¿Quién eres?</h3>
+    <select id="choferId" onchange="actualizarBadge()">
+      <option value="chofer1">Chofer 1</option>
+      <option value="chofer2">Chofer 2</option>
+      <option value="chofer3">Chofer 3</option>
+      <option value="chofer4">Chofer 4</option>
+    </select>
+  </div>
+
+  <div id="badge" class="badge" style="background:#dbeafe;color:#1d4ed8;">Chofer 1</div>
+
+  <div id="statusBox">
+    <div style="margin-bottom:10px;">
+      <span class="status-dot dot-off" id="dot"></span>
+      <span class="status-text" id="statusText">Inactivo</span>
+    </div>
+    <div class="info-row"><span>Latitud</span><span id="lat">--</span></div>
+    <div class="info-row"><span>Longitud</span><span id="lng">--</span></div>
+    <div class="info-row"><span>Precisión</span><span id="acc">--</span></div>
+    <div class="info-row"><span>Velocidad</span><span id="spd">--</span></div>
+  </div>
+
+  <button id="btnInstall" onclick="instalarApp()">📲 Instalar app en celular</button>
+  <button id="btnStart" onclick="startTracking()">Iniciar seguimiento</button>
+  <button id="btnStop" onclick="stopTracking()">Detener seguimiento</button>
+  <div class="error" id="errorMsg"></div>
+  <p class="update-time" id="lastUpdate"></p>
+  <p class="wake-lock-status" id="wakeLockStatus"></p>
+
+  <div class="tip">
+    💡 <strong>Para mejor funcionamiento:</strong> Toca "Instalar app" arriba, luego ábrela desde tu pantalla de inicio. Así funciona aunque cambies de app.
+  </div>
+</div>
+
+<script>
+  const badges = [
+    {bg:'#dbeafe',color:'#1d4ed8',label:'Chofer 1'},
+    {bg:'#dcfce7',color:'#15803d',label:'Chofer 2'},
+    {bg:'#fef3c7',color:'#b45309',label:'Chofer 3'},
+    {bg:'#fce7f3',color:'#be185d',label:'Chofer 4'}
+  ];
+  window.actualizarBadge = function() {
+    const idx = parseInt(document.getElementById('choferId').value.replace('chofer','')) - 1;
+    const b = document.getElementById('badge');
+    b.style.background = badges[idx].bg;
+    b.style.color = badges[idx].color;
+    b.textContent = badges[idx].label;
+  };
+
+  let deferredPrompt = null;
+  window.addEventListener('beforeinstallprompt', e => {
+    e.preventDefault();
+    deferredPrompt = e;
+    document.getElementById('btnInstall').style.display = 'block';
+  });
+  window.instalarApp = async function() {
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      const result = await deferredPrompt.userChoice;
+      if (result.outcome === 'accepted') {
+        document.getElementById('btnInstall').style.display = 'none';
+      }
+    }
+  };
+
+  let wakeLock = null;
+  async function pedirWakeLock() {
+    try {
+      if ('wakeLock' in navigator) {
+        wakeLock = await navigator.wakeLock.request('screen');
+        document.getElementById('wakeLockStatus').textContent = '🔆 Pantalla activa para evitar pausas';
+        wakeLock.addEventListener('release', () => {
+          document.getElementById('wakeLockStatus').textContent = '⚠️ Pantalla liberada — puede pausarse';
+        });
+      }
+    } catch(e) {}
+  }
+  document.addEventListener('visibilitychange', async () => {
+    if (wakeLock !== null && document.visibilityState === 'visible') {
+      await pedirWakeLock();
+    }
+  });
+</script>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getDatabase, ref, set, onDisconnect } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+  const FIREBASE_CONFIG = {
+    apiKey: "AIzaSyCGTk3_Ox56EdkC1g-lYaPUhKxGiCLXiX4",
+    databaseURL: "https://rastreo-chofer-70dac-default-rtdb.firebaseio.com"
+  };
+  const nombres = ['Chofer 1','Chofer 2','Chofer 3','Chofer 4'];
+  let watchId = null, locationRef = null;
+
+  window.startTracking = async function() {
+    const choferId = document.getElementById('choferId').value;
+    const errorEl = document.getElementById('errorMsg');
+    errorEl.textContent = '';
+
+    await window.pedirWakeLock();
+
+    try {
+      const app = initializeApp(FIREBASE_CONFIG, 'app-' + Date.now());
+      const db = getDatabase(app);
+      locationRef = ref(db, 'choferes/' + choferId);
+      onDisconnect(locationRef).update({ activo: false });
+
+      if (!navigator.geolocation) { errorEl.textContent = 'GPS no disponible.'; return; }
+
+      watchId = navigator.geolocation.watchPosition(
+        pos => {
+          const { latitude, longitude, accuracy, speed } = pos.coords;
+          const idx = parseInt(choferId.replace('chofer','')) - 1;
+          set(locationRef, {
+            lat: latitude, lng: longitude,
+            accuracy: Math.round(accuracy),
+            speed: speed ? parseFloat((speed * 3.6).toFixed(1)) : 0,
+            timestamp: Date.now(),
+            activo: true,
+            id: choferId,
+            nombre: nombres[idx]
+          });
+          document.getElementById('lat').textContent = latitude.toFixed(6);
+          document.getElementById('lng').textContent = longitude.toFixed(6);
+          document.getElementById('acc').textContent = Math.round(accuracy) + ' m';
+          document.getElementById('spd').textContent = (speed ? (speed*3.6).toFixed(1) : '0') + ' km/h';
+          document.getElementById('dot').className = 'status-dot dot-on';
+          document.getElementById('statusText').textContent = 'Enviando ubicación...';
+          document.getElementById('lastUpdate').textContent = 'Última vez: ' + new Date().toLocaleTimeString();
+        },
+        err => { document.getElementById('errorMsg').textContent = 'Error GPS: ' + err.message; },
+        { enableHighAccuracy: true, maximumAge: 5000, timeout: 10000 }
+      );
+
+      document.getElementById('btnStart').style.display = 'none';
+      document.getElementById('btnStop').style.display = 'block';
+    } catch(e) {
+      errorEl.textContent = 'Error: ' + e.message;
+    }
+  };
+
+  window.stopTracking = function() {
+    if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+    if (locationRef) set(locationRef, { activo: false, timestamp: Date.now() });
+    if (wakeLock) { try { wakeLock.release(); } catch(e){} }
+    document.getElementById('dot').className = 'status-dot dot-off';
+    document.getElementById('statusText').textContent = 'Detenido';
+    document.getElementById('btnStart').style.display = 'block';
+    document.getElementById('btnStop').style.display = 'none';
+    document.getElementById('lastUpdate').textContent = '';
+    document.getElementById('wakeLockStatus').textContent = '';
+  };
+
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  }
+</script>
+</body>
+</html>
