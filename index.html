@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chofer GPS</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: sans-serif; background: #1e3a5f; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 1.5rem; }
+  .container { max-width: 400px; width: 100%; text-align: center; }
+  .logo { font-size: 56px; margin-bottom: 1rem; }
+  h1 { color: #fff; font-size: 24px; font-weight: 700; margin-bottom: 0.4rem; }
+  .sub { color: #93c5fd; font-size: 14px; margin-bottom: 2.5rem; }
+  .btn { display: block; width: 100%; padding: 18px; border-radius: 14px; border: none; font-size: 17px; font-weight: 700; cursor: pointer; text-decoration: none; margin-bottom: 14px; transition: transform 0.15s, opacity 0.15s; }
+  .btn:hover { transform: scale(1.02); opacity: 0.93; }
+  .btn-chofer { background: #2563eb; color: #fff; }
+  .btn-icon { font-size: 22px; margin-right: 8px; vertical-align: middle; }
+  .footer { color: #1e3a5f; font-size: 11px; margin-top: 3rem; user-select: none; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="logo">🚗</div>
+  <h1>Rastreo GPS</h1>
+  <p class="sub">Presiona el botón para compartir tu ubicación</p>
+
+  <a href="chofer.html" class="btn btn-chofer">
+    <span class="btn-icon">📍</span> Soy chofer — compartir ubicación
+  </a>
+
+  <!-- Acceso oculto al monitor - no visible para choferes -->
+  <p class="footer" onclick="accesoMonitor()" style="cursor:default;">Sistema de rastreo v2.0</p>
+</div>
+
+<script>
+  let clicks = 0, timer = null;
+  function accesoMonitor() {
+    clicks++;
+    clearTimeout(timer);
+    timer = setTimeout(() => { clicks = 0; }, 2000);
+    if (clicks >= 5) {
+      clicks = 0;
+      const clave = prompt('Contraseña de administrador:');
+      if (clave === 'admin2024') {
+        window.location.href = 'monitor.html';
+      } else if (clave !== null) {
+        alert('Contraseña incorrecta');
+      }
+    }
+  }
+</script>
+</body>
+</html>
