@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Monitor de Choferes</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: sans-serif; background: #f0f4f8; overflow: hidden; }
+
+  #loginScreen { position: fixed; inset: 0; background: #1e3a5f; display: flex; align-items: center; justify-content: center; z-index: 9999; }
+  .login-card { background: #fff; border-radius: 16px; padding: 2rem; max-width: 340px; width: 90%; text-align: center; }
+  .login-card .logo { font-size: 44px; margin-bottom: 12px; }
+  .login-card h2 { font-size: 20px; font-weight: 700; color: #1e3a5f; margin-bottom: 6px; }
+  .login-card p { font-size: 13px; color: #6b7280; margin-bottom: 1.5rem; }
+  .login-card input { width: 100%; padding: 12px 14px; border: 1.5px solid #d1d5db; border-radius: 10px; font-size: 16px; margin-bottom: 12px; text-align: center; letter-spacing: 3px; }
+  .login-card input:focus { outline: none; border-color: #2563eb; }
+  .login-card button { width: 100%; padding: 13px; background: #2563eb; color: #fff; border: none; border-radius: 10px; font-size: 16px; font-weight: 700; cursor: pointer; }
+  .login-error { color: #dc2626; font-size: 13px; margin-top: 8px; display: none; }
+
+  #topbar { background: #1e3a5f; color: #fff; padding: 10px 16px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px; z-index: 2000; position: relative; }
+  #topbar h1 { font-size: 15px; font-weight: 600; }
+  #topbar a { color: #93c5fd; font-size: 12px; text-decoration: none; }
+  .top-badges { display: flex; gap: 5px; flex-wrap: wrap; align-items: center; }
+  .cbadge { font-size: 11px; padding: 3px 10px; border-radius: 12px; font-weight: 600; opacity: 0.35; transition: opacity 0.3s; cursor: pointer; }
+  .cbadge.on { opacity: 1; }
+  .c1b{background:#93c5fd;color:#1e3a5f} .c2b{background:#86efac;color:#14532d}
+  .c3b{background:#fcd34d;color:#78350f} .c4b{background:#f9a8d4;color:#831843}
+  .top-btn { background: #fff; color: #1e3a5f; border: none; border-radius: 8px; padding: 4px 10px; font-size: 12px; font-weight: 600; cursor: pointer; margin-left: 3px; }
+  #map { height: calc(100vh - 50px); width: 100%; }
+
+  #panel { position: absolute; top: 60px; left: 10px; z-index: 1000; display: flex; flex-direction: column; gap: 7px; width: 220px; }
+  .chofer-card { background: #fff; border-radius: 10px; padding: 9px 11px; box-shadow: 0 1px 6px rgba(0,0,0,0.12); border-left: 4px solid #ccc; opacity: 0.45; transition: opacity 0.3s, background 0.3s; cursor: pointer; }
+  .chofer-card.on { opacity: 1; }
+  .chofer-card.parado { background: #fff7ed; border-left-color: #f97316 !important; animation: parpadeo 0.8s infinite; }
+  @keyframes parpadeo { 0%,100%{opacity:1} 50%{opacity:0.6} }
+  .chofer-card h4 { font-size: 13px; font-weight: 600; margin-bottom: 3px; display: flex; align-items: center; gap: 5px; }
+  .chofer-card .nombre { font-size: 11px; color: #666; margin-bottom: 4px; }
+  .chofer-card .row { display: flex; justify-content: space-between; font-size: 11px; color: #555; padding: 2px 0; }
+  .chofer-card .row span:last-child { font-weight: 600; color: #111; }
+  .dot-s { width: 8px; height: 8px; border-radius: 50%; background: #ccc; flex-shrink: 0; }
+  .dot-s.on { background: #22c55e; animation: pulse 1.5s infinite; }
+  .dot-s.parado { background: #f97316; animation: pulse 0.8s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+  .maxspd { font-size: 10px; color: #ef4444; font-weight: 600; }
+  .alerta-parado { background: #fff7ed; border: 1px solid #fed7aa; border-radius: 6px; padding: 4px 8px; font-size: 11px; color: #c2410c; margin-top: 4px; display: none; font-weight: 600; }
+  .disconnected-alert { background: #fef2f2; border: 1px solid #fecaca; border-radius: 6px; padding: 4px 8px; font-size: 11px; color: #dc2626; margin-top: 3px; display: none; }
+  .ultimo-evento { border-radius: 6px; padding: 4px 8px; font-size: 11px; margin-top: 4px; font-weight: 600; display: none; }
+  .ev-llegada { background: #dbeafe; color: #1d4ed8; }
+  .ev-entrega { background: #dcfce7; color: #15803d; }
+  .ev-problema { background: #fff7ed; color: #c2410c; }
+
+  #btnTodos { position: absolute; bottom: 20px; right: 16px; z-index: 1000; background: #2563eb; color: #fff; border: none; border-radius: 8px; padding: 10px 16px; font-size: 13px; font-weight: 600; cursor: pointer; }
+  #btnSilenciar { position: absolute; bottom: 20px; right: 120px; z-index: 1000; background: #f97316; color: #fff; border: none; border-radius: 8px; padding: 10px 16px; font-size: 13px; font-weight: 600; cursor: pointer; display: none; animation: pulsarBtn 1s infinite; }
+  @keyframes pulsarBtn { 0%,100%{transform:scale(1)} 50%{transform:scale(1.05)} }
+
+  .toast { position: absolute; top: 60px; right: 10px; z-index: 3000; padding: 12px 16px; border-radius: 10px; font-size: 13px; font-weight: 600; display: none; max-width: 260px; box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
+  .toast-warn{background:#f97316;color:#fff} .toast-danger{background:#dc2626;color:#fff}
+  .toast-success{background:#16a34a;color:#fff} .toast-info{background:#2563eb;color:#fff}
+
+  #alarmaOverlay { position: fixed; inset: 0; background: rgba(249,115,22,0.15); z-index: 2500; display: none; pointer-events: none; animation: flashOverlay 1s infinite; }
+  @keyframes flashOverlay { 0%,100%{opacity:0} 50%{opacity:1} }
+
+  /* Panel lateral genérico */
+  .side-panel { position: absolute; top: 0; right: 0; width: 380px; height: 100vh; background: #fff; z-index: 4000; box-shadow: -4px 0 20px rgba(0,0,0,0.15); display: none; flex-direction: column; }
+  .side-panel.open { display: flex; }
+  .sp-header { background: #1e3a5f; color: #fff; padding: 14px 16px; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
+  .sp-header h2 { font-size: 15px; font-weight: 600; }
+  .sp-close { background: none; border: none; color: #fff; font-size: 20px; cursor: pointer; }
+  .sp-tabs { display: flex; border-bottom: 1px solid #e5e7eb; flex-shrink: 0; }
+  .sp-tab { flex: 1; padding: 9px 4px; text-align: center; font-size: 12px; font-weight: 600; cursor: pointer; color: #6b7280; border-bottom: 2px solid transparent; }
+  .sp-tab.active { color: #2563eb; border-bottom-color: #2563eb; }
+  .sp-body { flex: 1; overflow-y: auto; padding: 12px; }
+
+  /* Botones de exportación */
+  .export-bar { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; }
+  .btn-exp { padding: 7px 12px; border-radius: 8px; border: none; font-size: 12px; font-weight: 600; cursor: pointer; flex: 1; min-width: 80px; }
+  .btn-pdf { background: #dc2626; color: #fff; }
+  .btn-excel { background: #16a34a; color: #fff; }
+  .btn-txt { background: #2563eb; color: #fff; }
+  .btn-print { background: #7c3aed; color: #fff; }
+
+  .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+  .stat-card { background: #f0f9ff; border-radius: 8px; padding: 10px; text-align: center; }
+  .stat-card .val { font-size: 20px; font-weight: 700; color: #2563eb; }
+  .stat-card .lbl { font-size: 11px; color: #6b7280; margin-top: 2px; }
+  .stat-card.green { background: #f0fdf4; } .stat-card.green .val { color: #16a34a; }
+  .stat-card.orange { background: #fff7ed; } .stat-card.orange .val { color: #c2410c; }
+
+  .item-card { border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; border-left: 4px solid #ccc; background: #f8fafc; }
+  .item-card.llegada { border-left-color: #2563eb; background: #eff6ff; }
+  .item-card.entrega { border-left-color: #16a34a; background: #f0fdf4; }
+  .item-card.problema { border-left-color: #f97316; background: #fff7ed; }
+  .item-card .ic-tipo { font-size: 13px; font-weight: 700; margin-bottom: 3px; }
+  .item-card.llegada .ic-tipo { color: #1d4ed8; }
+  .item-card.entrega .ic-tipo { color: #15803d; }
+  .item-card.problema .ic-tipo { color: #c2410c; }
+  .item-card .ic-nota { font-size: 12px; color: #555; margin-bottom: 3px; }
+  .item-card .ic-hora { font-size: 11px; color: #9ca3af; }
+  .item-card .ic-ver { font-size: 11px; color: #2563eb; cursor: pointer; text-decoration: underline; }
+  .section-title { font-size: 12px; font-weight: 700; color: #374151; margin: 10px 0 6px; padding-bottom: 4px; border-bottom: 1px solid #f1f5f9; }
+  .empty { text-align: center; color: #9ca3af; font-size: 13px; padding: 2rem; }
+
+  /* Print styles */
+  @media print {
+    body * { visibility: hidden; }
+    #printArea, #printArea * { visibility: visible; }
+    #printArea { position: fixed; top: 0; left: 0; width: 100%; background: #fff; padding: 20px; }
+    .no-print { display: none !important; }
+  }
+</style>
+</head>
+<body>
+
+<div id="loginScreen">
+  <div class="login-card">
+    <div class="logo">🔐</div>
+    <h2>Acceso restringido</h2>
+    <p>Ingresa la contraseña de administrador</p>
+    <input type="password" id="claveInput" placeholder="••••••••" onkeydown="if(event.key==='Enter')verificarClave()" />
+    <button onclick="verificarClave()">Entrar</button>
+    <p class="login-error" id="loginError">Contraseña incorrecta.</p>
+  </div>
+</div>
+
+<div id="alarmaOverlay"></div>
+
+<div id="topbar">
+  <div style="display:flex;align-items:center;gap:10px;">
+    <a href="index.html">← Inicio</a>
+    <h1>🗺️ Monitor</h1>
+  </div>
+  <div class="top-badges">
+    <span class="cbadge c1b" id="b1">C1</span>
+    <span class="cbadge c2b" id="b2">C2</span>
+    <span class="cbadge c3b" id="b3">C3</span>
+    <span class="cbadge c4b" id="b4">C4</span>
+    <button class="top-btn" onclick="abrirPanel('eventos')">📦 Eventos</button>
+    <button class="top-btn" onclick="abrirPanel('historial')">📋 Historial</button>
+    <button class="top-btn" onclick="abrirPanel('reporte')">📊 Reporte</button>
+  </div>
+</div>
+
+<div id="map"></div>
+<div class="toast" id="toast"></div>
+<div id="printArea" style="display:none;"></div>
+
+<div id="panel">
+  <div class="chofer-card" id="card1" style="border-left-color:#3b82f6;" onclick="centrarChofer(0)">
+    <h4><span class="dot-s" id="dot1"></span>Chofer 1</h4>
+    <div class="nombre" id="nombre1">Sin nombre</div>
+    <div class="row"><span>Velocidad</span><span id="spd1">--</span></div>
+    <div class="row"><span>Vel. máx</span><span class="maxspd" id="maxspd1">--</span></div>
+    <div class="row"><span>Activo</span><span id="time1">--</span></div>
+    <div class="row"><span>Actualizado</span><span id="upd1">--</span></div>
+    <div class="ultimo-evento" id="ue1"></div>
+    <div class="alerta-parado" id="parado1">🚨 DETENIDO</div>
+    <div class="disconnected-alert" id="alert1">🔴 Desconectado</div>
+  </div>
+  <div class="chofer-card" id="card2" style="border-left-color:#22c55e;" onclick="centrarChofer(1)">
+    <h4><span class="dot-s" id="dot2"></span>Chofer 2</h4>
+    <div class="nombre" id="nombre2">Sin nombre</div>
+    <div class="row"><span>Velocidad</span><span id="spd2">--</span></div>
+    <div class="row"><span>Vel. máx</span><span class="maxspd" id="maxspd2">--</span></div>
+    <div class="row"><span>Activo</span><span id="time2">--</span></div>
+    <div class="row"><span>Actualizado</span><span id="upd2">--</span></div>
+    <div class="ultimo-evento" id="ue2"></div>
+    <div class="alerta-parado" id="parado2">🚨 DETENIDO</div>
+    <div class="disconnected-alert" id="alert2">🔴 Desconectado</div>
+  </div>
+  <div class="chofer-card" id="card3" style="border-left-color:#f59e0b;" onclick="centrarChofer(2)">
+    <h4><span class="dot-s" id="dot3"></span>Chofer 3</h4>
+    <div class="nombre" id="nombre3">Sin nombre</div>
+    <div class="row"><span>Velocidad</span><span id="spd3">--</span></div>
+    <div class="row"><span>Vel. máx</span><span class="maxspd" id="maxspd3">--</span></div>
+    <div class="row"><span>Activo</span><span id="time3">--</span></div>
+    <div class="row"><span>Actualizado</span><span id="upd3">--</span></div>
+    <div class="ultimo-evento" id="ue3"></div>
+    <div class="alerta-parado" id="parado3">🚨 DETENIDO</div>
+    <div class="disconnected-alert" id="alert3">🔴 Desconectado</div>
+  </div>
+  <div class="chofer-card" id="card4" style="border-left-color:#ec4899;" onclick="centrarChofer(3)">
+    <h4><span class="dot-s" id="dot4"></span>Chofer 4</h4>
+    <div class="nombre" id="nombre4">Sin nombre</div>
+    <div class="row"><span>Velocidad</span><span id="spd4">--</span></div>
+    <div class="row"><span>Vel. máx</span><span class="maxspd" id="maxspd4">--</span></div>
+    <div class="row"><span>Activo</span><span id="time4">--</span></div>
+    <div class="row"><span>Actualizado</span><span id="upd4">--</span></div>
+    <div class="ultimo-evento" id="ue4"></div>
+    <div class="alerta-parado" id="parado4">🚨 DETENIDO</div>
+    <div class="disconnected-alert" id="alert4">🔴 Desconectado</div>
+  </div>
+</div>
+
+<button id="btnSilenciar" onclick="silenciarAlarma()">🔇 Silenciar</button>
+<button id="btnTodos" onclick="centrarTodos()">Ver todos</button>
+
+<!-- Panel lateral -->
+<div class="side-panel" id="sidePanel">
+  <div class="sp-header">
+    <h2 id="spTitle">Panel</h2>
+    <button class="sp-close" onclick="cerrarPanel()">✕</button>
+  </div>
+  <div class="sp-tabs" id="spTabs">
+    <div class="sp-tab active" onclick="verTab(0)" id="stab1">Chofer 1</div>
+    <div class="sp-tab" onclick="verTab(1)" id="stab2">Chofer 2</div>
+    <div class="sp-tab" onclick="verTab(2)" id="stab3">Chofer 3</div>
+    <div class="sp-tab" onclick="verTab(3)" id="stab4">Chofer 4</div>
+    <div class="sp-tab" onclick="verTab(4)" id="stab5" style="display:none;">Todos</div>
+  </div>
+  <div class="sp-body" id="spBody"></div>
+</div>
+
+<script>
+const CLAVE = 'admin2024';
+function verificarClave() {
+  const v = document.getElementById('claveInput').value;
+  if (v === CLAVE) {
+    document.getElementById('loginScreen').style.display = 'none';
+    sessionStorage.setItem('monitor_auth','1');
+    if (Notification.permission === 'default') Notification.requestPermission();
+  } else {
+    document.getElementById('loginError').style.display = 'block';
+    document.getElementById('claveInput').value = '';
+  }
+}
+if (sessionStorage.getItem('monitor_auth') === '1') {
+  document.getElementById('loginScreen').style.display = 'none';
+  if (Notification.permission === 'default') Notification.requestPermission();
+}
+</script>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getDatabase, ref, onValue, push } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyCGTk3_Ox56EdkC1g-lYaPUhKxGiCLXiX4",
+  databaseURL: "https://rastreo-chofer-70dac-default-rtdb.firebaseio.com"
+};
+
+const map = L.map('map').setView([-17.7863,-63.1812],13);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap'}).addTo(map);
+
+const colores=['#3b82f6','#22c55e','#f59e0b','#ec4899'];
+const markers=[null,null,null,null],polylines=[null,null,null,null],histPolylines=[];
+const historiales=[[],[],[],[]],maxSpeeds=[0,0,0,0];
+const startTimes=[null,null,null,null],wasActive=[false,false,false,false];
+const lastMovement=[null,null,null,null],lastPositions=[null,null,null,null];
+const paradoAlertado=[false,false,false,false];
+const nombresDefault=['Chofer 1','Chofer 2','Chofer 3','Chofer 4'];
+const nombresActuales=[...nombresDefault];
+const totalDistancias=[0,0,0,0];
+let historialData=[[],[],[],[]],eventosData=[[],[],[],[]];
+let panelActual='eventos', tabActiva=0;
+
+// Alarma
+let audioCtx=null,alarmaInterval=null,silenciado=false,alarmaActiva=false,contadorAlarma=0;
+function getACtx(){if(!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)();return audioCtx;}
+function tono(f,d,t,v=0.5,tp='sine'){const ctx=getACtx(),o=ctx.createOscillator(),g=ctx.createGain();o.connect(g);g.connect(ctx.destination);o.frequency.value=f;o.type=tp;g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(v,t+0.02);g.gain.setValueAtTime(v,t+d-0.02);g.gain.linearRampToValueAtTime(0,t+d);o.start(t);o.stop(t+d);}
+const secs=[
+  ()=>{const ctx=getACtx(),t=ctx.currentTime;for(let i=0;i<3;i++){tono(440+i*200,0.3,t+i*0.35,0.6,'sawtooth');tono(800-i*100,0.3,t+i*0.35+0.15,0.5,'square');}},
+  ()=>{const ctx=getACtx(),t=ctx.currentTime;for(let i=0;i<5;i++)tono(1000,0.1,t+i*0.2,0.7,'square');tono(1400,0.4,t+1.1,0.8,'sine');},
+  ()=>{const ctx=getACtx(),t=ctx.currentTime;tono(1200,0.4,t,0.7,'sine');tono(900,0.4,t+0.45,0.7,'sine');tono(600,0.6,t+0.9,0.8,'sine');},
+  ()=>{const ctx=getACtx(),t=ctx.currentTime;for(let i=0;i<4;i++){tono(880,0.2,t+i*0.25,0.6,'sawtooth');tono(1100,0.15,t+i*0.25+0.1,0.5,'square');}tono(1300,0.5,t+1.1,0.9,'sine');}
+];
+function tocarAlarma(){if(silenciado)return;try{secs[contadorAlarma%secs.length]();contadorAlarma++;}catch(e){}}
+function iniciarAlarma(nombre,mins){
+  if(alarmaActiva&&!silenciado)return;alarmaActiva=true;silenciado=false;
+  document.getElementById('alarmaOverlay').style.display='block';
+  document.getElementById('btnSilenciar').style.display='block';
+  if(Notification.permission==='granted')new Notification('🚨 Chofer detenido',{body:nombre+' lleva '+mins+' min sin moverse',requireInteraction:true});
+  tocarAlarma();
+  alarmaInterval=setInterval(()=>{if(!silenciado)tocarAlarma();},20000);
+}
+function detenerAlarma(){clearInterval(alarmaInterval);alarmaInterval=null;alarmaActiva=false;document.getElementById('alarmaOverlay').style.display='none';document.getElementById('btnSilenciar').style.display='none';}
+window.silenciarAlarma=function(){silenciado=true;detenerAlarma();showToast('🔇 Silenciada 5 minutos','toast-warn');setTimeout(()=>{silenciado=false;if(paradoAlertado.some(v=>v)){const i=paradoAlertado.findIndex(v=>v);iniciarAlarma(nombresActuales[i],10);}},300000);};
+
+function showToast(msg,tipo){const t=document.getElementById('toast');t.textContent=msg;t.className='toast '+tipo;t.style.display='block';setTimeout(()=>{t.style.display='none';},5000);}
+function tiempoActivo(ts){if(!ts)return'--';const s=Math.floor((Date.now()-ts)/1000),h=Math.floor(s/3600),m=Math.floor((s%3600)/60);return(h>0?h+'h ':'')+m+'min';}
+function calcDist(la1,lo1,la2,lo2){const R=6371,dL=(la2-la1)*Math.PI/180,dO=(lo2-lo1)*Math.PI/180,a=Math.sin(dL/2)**2+Math.cos(la1*Math.PI/180)*Math.cos(la2*Math.PI/180)*Math.sin(dO/2)**2;return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));}
+function fDist(km){return km<1?Math.round(km*1000)+'m':km.toFixed(1)+'km';}
+function fechaHoy(){return new Date().toLocaleDateString('es-BO',{day:'2-digit',month:'2-digit',year:'numeric'});}
+
+setInterval(()=>{
+  for(let i=0;i<4;i++){
+    if(startTimes[i])document.getElementById('time'+(i+1)).textContent=tiempoActivo(startTimes[i]);
+    if(lastMovement[i]&&wasActive[i]){
+      const mins=Math.floor((Date.now()-lastMovement[i])/60000);
+      if(mins>=10&&!paradoAlertado[i]){paradoAlertado[i]=true;document.getElementById('parado'+(i+1)).style.display='block';document.getElementById('parado'+(i+1)).textContent='🚨 DETENIDO '+mins+' MIN';document.getElementById('card'+(i+1)).classList.add('parado');document.getElementById('dot'+(i+1)).className='dot-s parado';showToast('🚨 '+nombresActuales[i]+' lleva '+mins+' min detenido','toast-warn');iniciarAlarma(nombresActuales[i],mins);}
+      else if(mins>=10&&paradoAlertado[i])document.getElementById('parado'+(i+1)).textContent='🚨 DETENIDO '+mins+' MIN';
+    }
+  }
+},60000);
+
+function makeIcon(c,n){return L.divIcon({html:`<div style="background:${c};border:3px solid #fff;border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:13px;box-shadow:0 2px 8px rgba(0,0,0,0.3)">${n}</div>`,iconSize:[28,28],iconAnchor:[14,14],className:''});}
+
+const app=initializeApp(FIREBASE_CONFIG,'monitor');
+const db=getDatabase(app);
+
+for(let i=1;i<=4;i++){
+  const idx=i-1;
+  onValue(ref(db,'choferes/chofer'+i),snap=>{
+    const data=snap.val();if(!data||!data.lat)return;
+    const latlng=[data.lat,data.lng],activo=data.activo===true,nombre=data.nombre||nombresDefault[idx];
+    nombresActuales[idx]=nombre;
+    if(lastPositions[idx]){const dist=calcDist(lastPositions[idx][0],lastPositions[idx][1],data.lat,data.lng);if(dist>0.005){totalDistancias[idx]+=dist;lastMovement[idx]=Date.now();if(paradoAlertado[idx]){paradoAlertado[idx]=false;document.getElementById('parado'+(i)).style.display='none';document.getElementById('card'+i).classList.remove('parado');document.getElementById('dot'+i).className='dot-s'+(activo?' on':'');if(!paradoAlertado.some(v=>v))detenerAlarma();}}}else{lastMovement[idx]=Date.now();}
+    lastPositions[idx]=[data.lat,data.lng];
+    if(!markers[idx]){markers[idx]=L.marker(latlng,{icon:makeIcon(colores[idx],i)}).addTo(map).bindPopup(`<b>${nombre}</b><br>Vel: ${data.speed} km/h`);}else{markers[idx].setLatLng(latlng);markers[idx].getPopup().setContent(`<b>${nombre}</b><br>Vel: ${data.speed} km/h`);}
+    historiales[idx].push(latlng);if(historiales[idx].length>500)historiales[idx].shift();
+    if(polylines[idx])polylines[idx].remove();
+    polylines[idx]=L.polyline(historiales[idx],{color:colores[idx],weight:3,opacity:0.5}).addTo(map);
+    if(activo&&!wasActive[idx]){startTimes[idx]=data.timestamp;historialData[idx].push({fecha:fechaHoy(),inicio:new Date(data.timestamp).toLocaleTimeString('es-BO'),inicioTs:data.timestamp,fin:null,finTs:null,distKm:0,nombre,ruta:[]});}
+    if(!activo&&wasActive[idx]){showToast('🔴 '+nombre+' se desconectó','toast-danger');const ses=historialData[idx][historialData[idx].length-1];if(ses&&!ses.fin){ses.fin=new Date().toLocaleTimeString('es-BO');ses.finTs=Date.now();ses.distKm=parseFloat(totalDistancias[idx].toFixed(2));ses.ruta=[...historiales[idx]];try{push(ref(db,'historial/chofer'+(idx+1)),ses);}catch(e){}}startTimes[idx]=null;}
+    wasActive[idx]=activo;
+    if(historialData[idx].length>0){const ses=historialData[idx][historialData[idx].length-1];if(ses&&!ses.fin){ses.distKm=parseFloat(totalDistancias[idx].toFixed(2));ses.ruta=[...historiales[idx]];}}
+    if(data.speed>maxSpeeds[idx])maxSpeeds[idx]=data.speed;
+    if(data.ultimoEvento){const ue=document.getElementById('ue'+(i)),ev=data.ultimoEvento;const icons={'llegada':'📍','entrega':'✅','problema':'⚠️'};const cls={'llegada':'ev-llegada','entrega':'ev-entrega','problema':'ev-problema'};ue.className='ultimo-evento '+cls[ev.tipo];ue.textContent=(icons[ev.tipo]||'')+' '+ev.hora+(ev.nota?' — '+ev.nota:'');ue.style.display='block';}
+    document.getElementById('b'+i).textContent=nombre;document.getElementById('b'+i).className='cbadge c'+i+'b'+(activo?' on':'');
+    if(!paradoAlertado[idx]){document.getElementById('dot'+i).className='dot-s'+(activo?' on':'');document.getElementById('card'+i).className='chofer-card'+(activo?' on':'');}
+    document.getElementById('nombre'+i).textContent=nombre;document.getElementById('spd'+i).textContent=(data.speed||0)+' km/h';document.getElementById('maxspd'+i).textContent=maxSpeeds[idx]+' km/h';document.getElementById('time'+i).textContent=tiempoActivo(startTimes[idx]);document.getElementById('upd'+i).textContent=new Date(data.timestamp).toLocaleTimeString('es-BO');document.getElementById('alert'+i).style.display=activo?'none':'block';
+  });
+  onValue(ref(db,'eventos/chofer'+i),snap=>{
+    const data=snap.val();if(!data)return;
+    const items=Object.values(data).sort((a,b)=>b.timestamp-a.timestamp);
+    eventosData[idx]=items;
+    const ultimo=items[0];
+    if(ultimo&&(Date.now()-ultimo.timestamp)<10000){const icons={'llegada':'📍','entrega':'✅','problema':'⚠️'};const tipos={'llegada':'toast-info','entrega':'toast-success','problema':'toast-warn'};showToast((icons[ultimo.tipo]||'')+' '+nombresActuales[idx]+': '+(ultimo.tipo==='llegada'?'Llegada':ultimo.tipo==='entrega'?'Entrega confirmada':'Problema')+(ultimo.nota?' — '+ultimo.nota:''),tipos[ultimo.tipo]||'toast-info');}
+    if(panelActual==='eventos'&&tabActiva===idx)renderPanel();
+  });
+  onValue(ref(db,'historial/chofer'+i),snap=>{
+    const data=snap.val();if(!data)return;
+    const items=Object.values(data).sort((a,b)=>b.inicioTs-a.inicioTs).filter(it=>it.fin);
+    historialData[idx]=[...items,...historialData[idx].filter(it=>!it.fin)];
+    if((panelActual==='historial'||panelActual==='reporte')&&tabActiva===idx)renderPanel();
+  });
+}
+
+// ====== PANEL UNIFICADO ======
+window.abrirPanel=function(tipo){
+  panelActual=tipo;
+  const titles={'eventos':'📦 Eventos y entregas','historial':'📋 Historial de recorridos','reporte':'📊 Reporte completo'};
+  document.getElementById('spTitle').textContent=titles[tipo]||tipo;
+  document.getElementById('stab5').style.display=tipo==='reporte'?'block':'none';
+  document.getElementById('sidePanel').classList.add('open');
+  renderPanel();
+};
+window.cerrarPanel=function(){document.getElementById('sidePanel').classList.remove('open');histPolylines.forEach(p=>p.remove());histPolylines.length=0;};
+window.verTab=function(idx){tabActiva=idx;document.querySelectorAll('.sp-tab').forEach((t,i)=>t.className='sp-tab'+(i===idx?' active':''));renderPanel();};
+
+function renderPanel(){
+  document.querySelectorAll('.sp-tab').forEach((t,i)=>{
+    if(i<4)t.textContent=nombresActuales[i];
+  });
+  const body=document.getElementById('spBody');
+  if(panelActual==='eventos') body.innerHTML=renderEventos(tabActiva);
+  else if(panelActual==='historial') body.innerHTML=renderHistorial(tabActiva);
+  else if(panelActual==='reporte') body.innerHTML=renderReporte(tabActiva);
+}
+
+function renderEventos(idx){
+  const evs=eventosData[idx];
+  if(!evs||evs.length===0)return`<div class="export-bar no-print"><button class="btn-exp btn-excel" onclick="exportarExcel(${idx},'eventos')">📊 Excel</button><button class="btn-exp btn-txt" onclick="exportarTXT(${idx},'eventos')">📄 Texto</button></div><div class="empty">Sin eventos registrados</div>`;
+  const ll=evs.filter(e=>e.tipo==='llegada').length,en=evs.filter(e=>e.tipo==='entrega').length,pr=evs.filter(e=>e.tipo==='problema').length;
+  let html=`<div class="export-bar no-print">
+    <button class="btn-exp btn-pdf" onclick="imprimirReporte(${idx},'eventos')">🖨️ Imprimir</button>
+    <button class="btn-exp btn-excel" onclick="exportarExcel(${idx},'eventos')">📊 Excel</button>
+    <button class="btn-exp btn-txt" onclick="exportarTXT(${idx},'eventos')">📄 Texto</button>
+  </div>
+  <div class="stat-grid">
+    <div class="stat-card"><div class="val">${ll}</div><div class="lbl">📍 Llegadas</div></div>
+    <div class="stat-card green"><div class="val">${en}</div><div class="lbl">✅ Entregas</div></div>
+    <div class="stat-card orange"><div class="val">${pr}</div><div class="lbl">⚠️ Problemas</div></div>
+    <div class="stat-card"><div class="val">${evs.length}</div><div class="lbl">Total eventos</div></div>
+  </div>`;
+  const porFecha={};evs.forEach(e=>{if(!porFecha[e.fecha])porFecha[e.fecha]=[];porFecha[e.fecha].push(e);});
+  Object.entries(porFecha).forEach(([fecha,items])=>{
+    html+=`<div class="section-title">📅 ${fecha}</div>`;
+    items.forEach(ev=>{
+      const icons={'llegada':'📍 Llegada','entrega':'✅ Entrega confirmada','problema':'⚠️ Problema reportado'};
+      html+=`<div class="item-card ${ev.tipo}"><div class="ic-tipo">${icons[ev.tipo]||ev.tipo}</div>${ev.nota?`<div class="ic-nota">${ev.nota}</div>`:''}<div class="ic-hora">${ev.hora}${ev.lat?` — <span class="ic-ver" onclick="verEnMapa(${ev.lat},${ev.lng})">Ver en mapa</span>`:''}`;
+      html+=`</div></div>`;
+    });
+  });
+  return html;
+}
+
+function renderHistorial(idx){
+  const ses=historialData[idx];
+  if(!ses||ses.length===0)return`<div class="export-bar no-print"><button class="btn-exp btn-excel" onclick="exportarExcel(${idx},'historial')">📊 Excel</button></div><div class="empty">Sin recorridos registrados</div>`;
+  const totalKm=ses.reduce((s,it)=>s+(it.distKm||0),0);
+  const totalMins=ses.reduce((s,it)=>it.inicioTs&&it.finTs?s+Math.floor((it.finTs-it.inicioTs)/60000):s,0);
+  const h=Math.floor(totalMins/60),m=totalMins%60;
+  let html=`<div class="export-bar no-print">
+    <button class="btn-exp btn-pdf" onclick="imprimirReporte(${idx},'historial')">🖨️ Imprimir</button>
+    <button class="btn-exp btn-excel" onclick="exportarExcel(${idx},'historial')">📊 Excel</button>
+    <button class="btn-exp btn-txt" onclick="exportarTXT(${idx},'historial')">📄 Texto</button>
+  </div>
+  <div class="stat-grid">
+    <div class="stat-card"><div class="val">${ses.length}</div><div class="lbl">Recorridos</div></div>
+    <div class="stat-card green"><div class="val">${totalKm.toFixed(1)}km</div><div class="lbl">Distancia total</div></div>
+    <div class="stat-card"><div class="val">${h>0?h+'h':''} ${m}min</div><div class="lbl">Tiempo total</div></div>
+    <div class="stat-card orange"><div class="val">${maxSpeeds[idx]}km/h</div><div class="lbl">Vel. máxima</div></div>
+  </div>`;
+  const porFecha={};ses.forEach(s=>{if(!porFecha[s.fecha])porFecha[s.fecha]=[];porFecha[s.fecha].push(s);});
+  Object.entries(porFecha).forEach(([fecha,items])=>{
+    html+=`<div class="section-title">📅 ${fecha}</div>`;
+    items.forEach((s,si)=>{
+      const dur=s.inicioTs&&s.finTs?Math.floor((s.finTs-s.inicioTs)/60000)+'min':'En curso';
+      html+=`<div class="item-card" style="border-left-color:${colores[idx]}">
+        <div class="ic-tipo" style="color:${colores[idx]}">🚗 Recorrido — ${fDist(s.distKm||0)}</div>
+        <div class="ic-nota">Inicio: ${s.inicio} | Fin: ${s.fin||'En curso'} | Duración: ${dur}</div>
+        ${s.ruta&&s.ruta.length>1?`<span class="ic-ver no-print" onclick="verRutaH(${idx},${ses.indexOf(s)})">Ver ruta en mapa</span>`:''}
+      </div>`;
+    });
+  });
+  return html;
+}
+
+function renderReporte(idx){
+  const allIdx = idx === 4 ? [0,1,2,3] : [idx];
+  let html=`<div class="export-bar no-print">
+    <button class="btn-exp btn-pdf" onclick="imprimirReporte(${idx},'reporte')">🖨️ Imprimir/PDF</button>
+    <button class="btn-exp btn-excel" onclick="exportarExcel(${idx},'reporte')">📊 Excel</button>
+    <button class="btn-exp btn-txt" onclick="exportarTXT(${idx},'reporte')">📄 Texto</button>
+  </div>
+  <div class="section-title">📊 Reporte del ${fechaHoy()}</div>`;
+  allIdx.forEach(i=>{
+    const evs=eventosData[i],ses=historialData[i];
+    const ll=evs.filter(e=>e.tipo==='llegada').length,en=evs.filter(e=>e.tipo==='entrega').length,pr=evs.filter(e=>e.tipo==='problema').length;
+    const totalKm=ses.reduce((s,it)=>s+(it.distKm||0),0);
+    html+=`<div class="item-card" style="border-left-color:${colores[i]}">
+      <div class="ic-tipo" style="color:${colores[i]}">🚗 ${nombresActuales[i]}</div>
+      <div class="ic-nota">📍 ${ll} llegadas | ✅ ${en} entregas | ⚠️ ${pr} problemas</div>
+      <div class="ic-nota">🛣️ ${totalKm.toFixed(1)} km recorridos | ${ses.length} salidas</div>
+      <div class="ic-nota">🏎️ Vel. máxima: ${maxSpeeds[i]} km/h</div>
+    </div>`;
+  });
+  return html;
+}
+
+// ====== EXPORTACIONES ======
+window.exportarExcel=function(idx,tipo){
+  const allIdx = idx === 4 ? [0,1,2,3] : [idx];
+  let csv='';
+  allIdx.forEach(i=>{
+    if(tipo==='eventos'||tipo==='reporte'){
+      csv+=`EVENTOS - ${nombresActuales[i]}\n`;
+      csv+='Tipo,Nota,Hora,Fecha\n';
+      (eventosData[i]||[]).forEach(ev=>{ csv+=`${ev.tipo},"${ev.nota||''}",${ev.hora},${ev.fecha}\n`; });
+      csv+='\n';
+    }
+    if(tipo==='historial'||tipo==='reporte'){
+      csv+=`HISTORIAL - ${nombresActuales[i]}\n`;
+      csv+='Inicio,Fin,Duración (min),Distancia (km)\n';
+      (historialData[i]||[]).forEach(s=>{
+        const dur=s.inicioTs&&s.finTs?Math.floor((s.finTs-s.inicioTs)/60000):'';
+        csv+=`${s.inicio},${s.fin||'En curso'},${dur},${s.distKm||0}\n`;
+      });
+      csv+='\n';
+    }
+  });
+  const blob=new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8;'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');a.href=url;
+  a.download=`reporte_${tipo}_${fechaHoy().replace(/\//g,'-')}.csv`;
+  a.click();URL.revokeObjectURL(url);
+  showToast('📊 Archivo Excel descargado','toast-success');
+};
+
+window.exportarTXT=function(idx,tipo){
+  const allIdx = idx === 4 ? [0,1,2,3] : [idx];
+  let txt=`REPORTE DE CHOFERES\nFecha: ${fechaHoy()}\n${'='.repeat(40)}\n\n`;
+  allIdx.forEach(i=>{
+    txt+=`${nombresActuales[i].toUpperCase()}\n${'-'.repeat(30)}\n`;
+    if(tipo==='eventos'||tipo==='reporte'){
+      const evs=eventosData[i]||[];
+      txt+=`EVENTOS (${evs.length} total):\n`;
+      evs.forEach(ev=>{ txt+=`  ${ev.hora} - ${ev.tipo.toUpperCase()}${ev.nota?' - '+ev.nota:''}\n`; });
+    }
+    if(tipo==='historial'||tipo==='reporte'){
+      const ses=historialData[i]||[];
+      const totalKm=ses.reduce((s,it)=>s+(it.distKm||0),0);
+      txt+=`RECORRIDOS (${ses.length} salidas | ${totalKm.toFixed(1)} km total):\n`;
+      ses.forEach(s=>{const dur=s.inicioTs&&s.finTs?Math.floor((s.finTs-s.inicioTs)/60000)+'min':'En curso';txt+=`  ${s.inicio} → ${s.fin||'En curso'} | ${dur} | ${fDist(s.distKm||0)}\n`;});
+    }
+    txt+='\n';
+  });
+  const blob=new Blob([txt],{type:'text/plain;charset=utf-8'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');a.href=url;
+  a.download=`reporte_${tipo}_${fechaHoy().replace(/\//g,'-')}.txt`;
+  a.click();URL.revokeObjectURL(url);
+  showToast('📄 Archivo de texto descargado','toast-success');
+};
+
+window.imprimirReporte=function(idx,tipo){
+  const allIdx = idx === 4 ? [0,1,2,3] : [idx];
+  let html=`<html><head><style>
+    body{font-family:sans-serif;padding:20px;color:#111}
+    h1{font-size:18px;color:#1e3a5f;margin-bottom:4px}
+    h2{font-size:14px;color:#374151;margin:16px 0 8px;border-bottom:1px solid #e5e7eb;padding-bottom:4px}
+    table{width:100%;border-collapse:collapse;margin-bottom:16px;font-size:12px}
+    th{background:#1e3a5f;color:#fff;padding:6px 8px;text-align:left}
+    td{padding:5px 8px;border-bottom:1px solid #f1f5f9}
+    tr:nth-child(even){background:#f8fafc}
+    .badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600}
+    .llegada{background:#dbeafe;color:#1d4ed8}
+    .entrega{background:#dcfce7;color:#15803d}
+    .problema{background:#fff7ed;color:#c2410c}
+    .summary{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px}
+    .sum-card{background:#f0f9ff;border-radius:6px;padding:10px;text-align:center}
+    .sum-val{font-size:20px;font-weight:700;color:#2563eb}
+    .sum-lbl{font-size:10px;color:#6b7280}
+    @media print{button{display:none}}
+  </style></head><body>
+  <h1>📊 Reporte de Choferes — ${fechaHoy()}</h1>
+  <p style="font-size:12px;color:#6b7280;margin-bottom:16px">Generado: ${new Date().toLocaleString('es-BO')}</p>`;
+
+  allIdx.forEach(i=>{
+    const evs=eventosData[i]||[],ses=historialData[i]||[];
+    const ll=evs.filter(e=>e.tipo==='llegada').length;
+    const en=evs.filter(e=>e.tipo==='entrega').length;
+    const pr=evs.filter(e=>e.tipo==='problema').length;
+    const totalKm=ses.reduce((s,it)=>s+(it.distKm||0),0);
+    const totalMins=ses.reduce((s,it)=>it.inicioTs&&it.finTs?s+Math.floor((it.finTs-it.inicioTs)/60000):s,0);
+    const h=Math.floor(totalMins/60),m=totalMins%60;
+
+    html+=`<h2>🚗 ${nombresActuales[i]}</h2>
+    <div class="summary">
+      <div class="sum-card"><div class="sum-val">${en}</div><div class="sum-lbl">✅ Entregas</div></div>
+      <div class="sum-card"><div class="sum-val">${ll}</div><div class="sum-lbl">📍 Llegadas</div></div>
+      <div class="sum-card"><div class="sum-val">${totalKm.toFixed(1)}km</div><div class="sum-lbl">🛣️ Distancia</div></div>
+      <div class="sum-card"><div class="sum-val">${h>0?h+'h ':''} ${m}min</div><div class="sum-lbl">⏱️ Tiempo activo</div></div>
+    </div>`;
+
+    if(evs.length>0&&(tipo==='eventos'||tipo==='reporte')){
+      html+=`<table><tr><th>Tipo</th><th>Hora</th><th>Fecha</th><th>Nota</th></tr>`;
+      evs.forEach(ev=>{ html+=`<tr><td><span class="badge ${ev.tipo}">${ev.tipo==='llegada'?'📍 Llegada':ev.tipo==='entrega'?'✅ Entrega':'⚠️ Problema'}</span></td><td>${ev.hora}</td><td>${ev.fecha}</td><td>${ev.nota||''}</td></tr>`; });
+      html+=`</table>`;
+    }
+    if(ses.length>0&&(tipo==='historial'||tipo==='reporte')){
+      html+=`<table><tr><th>Inicio</th><th>Fin</th><th>Duración</th><th>Distancia</th></tr>`;
+      ses.forEach(s=>{ const dur=s.inicioTs&&s.finTs?Math.floor((s.finTs-s.inicioTs)/60000)+'min':'En curso'; html+=`<tr><td>${s.inicio}</td><td>${s.fin||'En curso'}</td><td>${dur}</td><td>${fDist(s.distKm||0)}</td></tr>`; });
+      html+=`</table>`;
+    }
+    if(pr>0){
+      html+=`<p style="color:#c2410c;font-size:12px;margin-bottom:8px">⚠️ ${pr} problema(s) reportado(s) hoy.</p>`;
+    }
+  });
+
+  html+=`<button onclick="window.print()" style="background:#2563eb;color:#fff;padding:10px 20px;border:none;border-radius:8px;cursor:pointer;font-size:14px;margin-top:16px">🖨️ Imprimir / Guardar PDF</button>
+  </body></html>`;
+
+  const win=window.open('','_blank');
+  win.document.write(html);
+  win.document.close();
+  showToast('🖨️ Reporte listo para imprimir','toast-success');
+};
+
+window.verEnMapa=function(lat,lng){cerrarPanel();map.setView([lat,lng],17);L.circle([lat,lng],{color:'#16a34a',fillColor:'#dcfce7',fillOpacity:0.5,radius:30}).addTo(map);};
+window.verRutaH=function(idx,sesIdx){
+  histPolylines.forEach(p=>p.remove());histPolylines.length=0;
+  const ses=historialData[idx][sesIdx];if(!ses||!ses.ruta||ses.ruta.length<2)return;
+  const p=L.polyline(ses.ruta,{color:colores[idx],weight:4,opacity:0.8,dashArray:'8,4'}).addTo(map);
+  histPolylines.push(p);map.fitBounds(p.getBounds(),{padding:[40,40]});cerrarPanel();
+};
+window.centrarChofer=function(idx){if(markers[idx])map.setView(markers[idx].getLatLng(),16);};
+window.centrarTodos=function(){const pts=markers.filter(m=>m!==null).map(m=>m.getLatLng());if(pts.length>0)map.fitBounds(L.latLngBounds(pts),{padding:[50,50]});};
+</script>
+</body>
+</html>
