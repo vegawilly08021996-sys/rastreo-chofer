@@ -1,0 +1,1311 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ingemaq — Rutas SCZ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=IBM+Plex+Mono:wght@400;500&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<style>
+:root{
+  --bg:#f0ede6;--surface:#fff;--surface2:#f5f2eb;
+  --border:#ddd9ce;--border2:#c8c4b8;
+  --text:#1a1916;--text2:#6b6860;--text3:#9c9a94;
+  --accent:#2563eb;--accent-light:#dbeafe;
+  --grid-line:#eae7e0;--hbg:#1a1916;
+  --shadow:0 1px 3px rgba(0,0,0,.08),0 4px 16px rgba(0,0,0,.06);
+  --shadow-lg:0 8px 32px rgba(0,0,0,.14);
+  --green:#16a34a;--orange:#f97316;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);height:100vh;display:flex;flex-direction:column;overflow:hidden}
+
+/* TOPBAR */
+.topbar{background:var(--hbg);padding:0 16px;height:50px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;z-index:1000}
+.topbar-left{display:flex;align-items:center;gap:10px}
+.app-icon{width:28px;height:28px;background:var(--accent);border-radius:7px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.app-icon svg{width:15px;height:15px;fill:white}
+.app-title{font-family:'Syne',sans-serif;font-size:14px;font-weight:700;color:#f5f4f0}
+.app-sub{font-size:9px;color:#555;letter-spacing:.5px;text-transform:uppercase}
+.topbar-actions{display:flex;gap:5px}
+.btn{display:inline-flex;align-items:center;gap:4px;padding:5px 11px;border-radius:6px;border:none;font-family:'Outfit',sans-serif;font-size:11px;font-weight:500;cursor:pointer;transition:all .15s;white-space:nowrap}
+.btn-ghost{background:transparent;color:#9c9a94;border:1px solid #2a2926}
+.btn-ghost:hover{background:#2a2926;color:#f5f4f0}
+.btn-primary{background:var(--accent);color:white}
+.btn-primary:hover{background:#1d4ed8}
+.btn-orange{background:#fff7ed;color:var(--orange);border:1px solid #fed7aa}
+.btn-orange:hover{background:#ffedd5}
+.btn-green{background:#f0fdf4;color:var(--green);border:1px solid #bbf7d0}
+.btn-green:hover{background:#dcfce7}
+.save-status{display:flex;align-items:center;gap:5px;font-size:10px;color:#6b6860}
+.save-dot{width:7px;height:7px;border-radius:50%;background:#4ade80;flex-shrink:0;transition:background .3s}
+.save-dot.dirty{background:var(--orange);animation:pulse .8s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.main{flex:1;display:flex;overflow:hidden}
+
+/* PANEL */
+.sheet-panel{width:420px;flex-shrink:0;display:flex;flex-direction:column;background:var(--surface);border-right:1px solid var(--border);overflow:hidden}
+.tabs{display:flex;border-bottom:1px solid var(--border);background:var(--surface2);flex-shrink:0}
+.tab{flex:1;padding:8px 4px;text-align:center;font-size:10px;font-weight:600;cursor:pointer;color:var(--text3);border-bottom:2px solid transparent;transition:all .15s}
+.tab.active{color:var(--text);border-bottom-color:var(--accent);background:var(--surface)}
+.tab:hover:not(.active){color:var(--text2)}
+.tab-content{display:none;flex-direction:column;flex:1;overflow:hidden}
+.tab-content.active{display:flex}
+
+/* FORM */
+.ph{padding:10px 14px;border-bottom:1px solid var(--border);background:var(--surface2);flex-shrink:0}
+.ph-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.ph-title{font-family:'Syne',sans-serif;font-size:12px;font-weight:700}
+.badge{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--text3);background:var(--border);padding:2px 7px;border-radius:10px}
+.fg{display:grid;grid-template-columns:1fr 1fr;gap:5px}
+.fg input,.fg select{padding:6px 9px;border:1px solid var(--border2);border-radius:6px;font-family:'Outfit',sans-serif;font-size:11px;color:var(--text);background:var(--surface);outline:none;transition:border-color .15s}
+.fg input:focus,.fg select:focus{border-color:var(--accent)}
+.fg input::placeholder{color:var(--text3)}
+.full{grid-column:1/-1}
+.btn-add-row{grid-column:1/-1;background:var(--hbg);color:white;border:none;padding:7px;border-radius:6px;font-family:'Outfit',sans-serif;font-size:12px;font-weight:600;cursor:pointer;transition:background .15s;display:flex;align-items:center;justify-content:center;gap:5px}
+.btn-add-row:hover{background:#2a2926}
+
+/* IMPORT SECTION */
+.import-bar{display:flex;gap:5px;align-items:center;padding:8px 14px;border-bottom:1px solid var(--border);background:#f9f8f5;flex-shrink:0}
+.import-bar span{font-size:10px;color:var(--text3);flex:1}
+.import-hint{padding:6px 14px;background:#fef3c7;border-bottom:1px solid #fde68a;font-size:10px;color:#92400e;flex-shrink:0;display:none}
+.import-hint.visible{display:block}
+
+/* TABLE */
+.table-wrap{flex:1;overflow-y:auto}
+.table-wrap::-webkit-scrollbar{width:4px}
+.table-wrap::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+table{width:100%;border-collapse:collapse}
+thead{position:sticky;top:0;z-index:5}
+thead tr{background:var(--surface2)}
+th{padding:6px 8px;text-align:left;font-family:'IBM Plex Mono',monospace;font-size:9px;font-weight:500;color:var(--text3);letter-spacing:.6px;text-transform:uppercase;border-bottom:2px solid var(--border)}
+tbody tr{border-bottom:1px solid var(--grid-line);cursor:pointer;transition:background .1s;animation:rowIn .18s ease}
+@keyframes rowIn{from{opacity:0;transform:translateY(-3px)}to{opacity:1;transform:none}}
+tbody tr:hover{background:#f7f5f0}
+tbody tr.selected{background:var(--accent-light)!important}
+td{padding:6px 8px;font-size:11px;vertical-align:middle}
+.name-cell{font-weight:600;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.addr-cell{font-size:10px;color:var(--text2);max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.coord-cell{font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--text3)}
+.cat-badge{font-size:9px;padding:1px 6px;border-radius:8px;font-weight:500;white-space:nowrap}
+.del-btn{background:none;border:none;cursor:pointer;color:var(--text3);padding:2px 5px;border-radius:4px;font-size:15px;line-height:1;transition:all .15s}
+.del-btn:hover{color:#ef4444;background:#fef2f2}
+.empty-state{padding:32px 16px;text-align:center;color:var(--text3)}
+.empty-state .icon{font-size:28px;margin-bottom:6px}
+.empty-state p{font-size:11px;line-height:1.6}
+
+/* RUTAS TAB */
+.route-panel-inner{display:flex;flex-direction:column;height:100%;overflow:hidden}
+.route-header{padding:9px 14px;border-bottom:1px solid var(--border);background:var(--surface2);flex-shrink:0}
+.route-header p{font-size:10px;color:var(--text2);line-height:1.5;margin-top:3px}
+.rb{padding:9px 14px;border-bottom:1px solid var(--border);flex-shrink:0;background:var(--surface);overflow-y:auto;max-height:420px}
+.rb::-webkit-scrollbar{width:3px}
+.rb::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+.rb label{font-size:10px;font-weight:600;color:var(--text2);display:block;margin-bottom:3px;margin-top:7px}
+.rb label:first-child{margin-top:0}
+.rb input[type=text],.rb input[type=tel],.rb input[type=time],.rb select{width:100%;padding:5px 9px;border:1px solid var(--border2);border-radius:6px;font-family:'Outfit',sans-serif;font-size:11px;color:var(--text);outline:none;transition:border-color .15s}
+.rb input:focus,.rb select:focus{border-color:var(--accent)}
+.rb-row2{display:grid;grid-template-columns:1fr 1fr;gap:5px}
+.swatches{display:flex;gap:5px;flex-wrap:wrap}
+.swatch{width:20px;height:20px;border-radius:50%;cursor:pointer;border:2px solid transparent;transition:all .15s}
+.swatch.selected{border-color:var(--text);transform:scale(1.18)}
+.driver-box{background:var(--surface2);border-radius:8px;padding:8px 10px;margin-top:4px}
+.driver-box .driver-title{font-size:9px;font-weight:700;color:var(--text3);letter-spacing:.5px;text-transform:uppercase;margin-bottom:6px}
+.stop-rows-wrap{max-height:140px;overflow-y:auto;margin-bottom:5px;display:flex;flex-direction:column;gap:3px}
+.stop-rows-wrap::-webkit-scrollbar{width:3px}
+.stop-rows-wrap::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+.stop-row{display:flex;align-items:center;gap:3px}
+.stop-row select{flex:2;padding:4px 7px;border:1px solid var(--border2);border-radius:5px;font-size:10px;font-family:'Outfit',sans-serif;outline:none;min-width:0}
+.stop-row select:focus{border-color:var(--accent)}
+.stop-del{width:55px!important;flex-shrink:0;padding:4px 5px!important;border:1px solid #fed7aa!important;border-radius:5px;font-size:10px;font-family:'IBM Plex Mono',monospace;text-align:center;outline:none;color:var(--orange)}
+.stop-del::placeholder{font-size:9px;color:#fbbf24}
+.stop-del:focus{border-color:var(--orange)!important}
+.del-unit{font-size:9px;color:var(--text3);flex-shrink:0}
+.btn-rm{background:none;border:none;cursor:pointer;color:var(--text3);font-size:15px;line-height:1;padding:1px;transition:color .15s;flex-shrink:0}
+.btn-rm:hover{color:#ef4444}
+.btn-add-stop{width:100%;padding:4px;border:1px dashed var(--border2);border-radius:5px;background:none;font-size:10px;color:var(--text3);cursor:pointer;transition:all .15s;margin-bottom:5px}
+.btn-add-stop:hover{border-color:var(--accent);color:var(--accent)}
+.editing-badge{display:none;font-size:10px;color:var(--orange);font-weight:600;text-align:center;padding:3px;background:#fff7ed;border:1px solid #fed7aa;border-radius:5px;margin-bottom:5px}
+.editing-badge.visible{display:block}
+.ra{display:flex;gap:5px}
+.ra button{flex:1;padding:6px;border-radius:6px;border:none;font-family:'Outfit',sans-serif;font-size:11px;font-weight:600;cursor:pointer;transition:all .15s}
+.btn-build{background:var(--hbg);color:white}.btn-build:hover{background:#333}.btn-build:disabled{background:#ccc;cursor:not-allowed}
+.btn-clr{background:#fef2f2;color:#ef4444;border:1px solid #fecaca}.btn-clr:hover{background:#fee2e2}
+
+/* ROUTE LIST */
+.route-list-wrap{flex:1;overflow-y:auto;display:flex;flex-direction:column}
+.route-list-wrap::-webkit-scrollbar{width:4px}
+.route-list-wrap::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+.route-items{flex:1}
+.route-item{border-bottom:1px solid var(--grid-line);animation:rowIn .18s ease}
+.ri-header{display:flex;align-items:center;gap:5px;padding:8px 12px}
+.ri-bar{width:4px;height:40px;border-radius:2px;flex-shrink:0}
+.ri-info{flex:1;min-width:0}
+.ri-name{font-size:12px;font-weight:700}
+.ri-driver{font-size:10px;color:var(--text3);margin-top:1px}
+.ri-pills{display:flex;flex-wrap:wrap;gap:3px;margin-top:3px}
+.pill{font-family:'IBM Plex Mono',monospace;font-size:9px;padding:1px 6px;border-radius:8px;font-weight:600;white-space:nowrap}
+.pill-b{background:#dbeafe;color:#1d4ed8}
+.pill-o{background:#fff7ed;color:#c2410c}
+.pill-g{background:#dcfce7;color:#166534}
+.pill-t{background:#f3e8ff;color:#6b21a8}
+.ri-btn{background:none;border:none;cursor:pointer;font-size:12px;padding:2px 4px;border-radius:4px;color:var(--text3);transition:all .15s;line-height:1}
+.ri-btn:hover{background:var(--border);color:var(--text)}
+.ri-del{background:none;border:none;cursor:pointer;color:var(--text3);font-size:14px;padding:2px 4px;border-radius:4px;transition:all .15s}
+.ri-del:hover{color:#ef4444;background:#fef2f2}
+
+/* SEGMENT LIST */
+.seg-list{padding:0 12px 8px 22px;display:none}
+.seg-list.open{display:block}
+.seg-item{display:flex;align-items:flex-start;gap:7px;padding:4px 0;border-bottom:1px dashed var(--grid-line)}
+.seg-item:last-child{border-bottom:none}
+.seg-conn{display:flex;flex-direction:column;align-items:center;flex-shrink:0;margin-top:3px}
+.seg-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.seg-line{width:2px;flex:1;min-height:20px;background:var(--border2);margin:2px 0}
+.seg-body{flex:1;min-width:0}
+.seg-name{font-size:11px;font-weight:600;color:var(--text)}
+.seg-del-tag{display:inline-flex;align-items:center;gap:2px;font-size:9px;color:var(--orange);background:#fff7ed;border:1px solid #fed7aa;border-radius:7px;padding:1px 5px;margin-left:4px;font-family:'IBM Plex Mono',monospace;font-weight:600}
+.seg-arrive{font-size:10px;color:var(--green);font-family:'IBM Plex Mono',monospace;font-weight:600;margin-top:1px}
+.seg-depart{font-size:9px;color:var(--text3);font-family:'IBM Plex Mono',monospace}
+.seg-arrow{display:flex;align-items:center;gap:4px;margin:2px 0}
+.seg-line2{flex:1;height:1px;background:var(--border2)}
+.seg-badge{display:flex;align-items:center;gap:3px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:2px 6px;font-size:9px;font-weight:600;color:var(--text2);white-space:nowrap;font-family:'IBM Plex Mono',monospace}
+.seg-badge .sep{color:var(--border2)}
+.seg-dest{font-size:9px;color:var(--text3)}
+.route-empty{padding:28px 16px;text-align:center;color:var(--text3)}
+.route-empty .icon{font-size:26px;margin-bottom:6px}
+.route-empty p{font-size:11px;line-height:1.6}
+
+/* CONSOLIDADO */
+.consolidado{flex-shrink:0;border-top:2px solid var(--border);background:var(--hbg);padding:10px 14px;display:none}
+.consolidado.visible{display:block}
+.c-title{font-family:'Syne',sans-serif;font-size:11px;font-weight:700;color:#f5f4f0;letter-spacing:.5px;margin-bottom:7px;display:flex;align-items:center;gap:6px}
+.c-title span{background:#2a2926;padding:1px 7px;border-radius:8px;font-size:10px;font-family:'IBM Plex Mono',monospace;color:#9c9a94}
+.c-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px}
+.c-card{background:#2a2926;border-radius:6px;padding:6px 10px}
+.c-card.full{grid-column:1/-1;background:#1e3a5f;border:1px solid #2563eb44}
+.c-card.grn{background:#052e16;border:1px solid #16a34a44}
+.c-card.org{background:#431407;border:1px solid #f9731644}
+.c-lbl{font-size:9px;color:#6b6860;letter-spacing:.4px;text-transform:uppercase;margin-bottom:2px}
+.c-val{font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:700;color:#f5f4f0}
+.c-sub{font-size:9px;color:#6b6860;margin-top:1px}
+.c-card.full .c-val{color:#60a5fa;font-size:15px}
+.c-card.grn .c-val{color:#4ade80}
+.c-card.org .c-val{color:#fb923c}
+
+/* MAP */
+.map-panel{flex:1;display:flex;flex-direction:column;position:relative}
+#map{flex:1}
+.map-tb{position:absolute;top:12px;left:12px;z-index:800;display:flex;flex-direction:column;gap:5px}
+.map-btn{background:white;border:1px solid var(--border);border-radius:8px;padding:6px 10px;font-family:'Outfit',sans-serif;font-size:11px;font-weight:500;cursor:pointer;display:flex;align-items:center;gap:5px;box-shadow:var(--shadow);transition:all .15s;color:var(--text);white-space:nowrap}
+.map-btn:hover{background:var(--surface2)}
+.map-btn.active{background:var(--hbg);color:white;border-color:var(--hbg)}
+.map-btn svg{width:12px;height:12px;flex-shrink:0}
+.click-hint{position:absolute;bottom:16px;left:50%;transform:translateX(-50%);z-index:800;background:var(--hbg);color:white;padding:6px 14px;border-radius:20px;font-size:11px;font-weight:500;box-shadow:var(--shadow-lg);opacity:0;pointer-events:none;transition:opacity .3s;white-space:nowrap}
+.click-hint.visible{opacity:1}
+
+/* MODALS */
+.mo{position:fixed;inset:0;z-index:2000;background:rgba(0,0,0,.35);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .2s}
+.mo.open{opacity:1;pointer-events:all}
+.modal{background:white;border-radius:14px;padding:20px;width:360px;box-shadow:var(--shadow-lg);transform:scale(.95);transition:transform .2s;max-height:90vh;overflow-y:auto}
+.modal::-webkit-scrollbar{width:4px}
+.modal::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+.mo.open .modal{transform:scale(1)}
+.modal h3{font-family:'Syne',sans-serif;font-size:14px;font-weight:700;margin-bottom:3px}
+.modal .coords{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--text3);margin-bottom:12px}
+.modal label{font-size:11px;font-weight:500;color:var(--text2);display:block;margin-bottom:3px;margin-top:9px}
+.modal input,.modal select{width:100%;padding:7px 10px;border:1px solid var(--border2);border-radius:7px;font-family:'Outfit',sans-serif;font-size:12px;color:var(--text);outline:none}
+.modal input:focus,.modal select:focus{border-color:var(--accent)}
+.ma{display:flex;gap:7px;margin-top:14px}
+.ma .btn{flex:1;justify-content:center;padding:7px;font-size:12px}
+.msect{background:var(--surface2);border-radius:8px;padding:9px 11px;margin-top:9px}
+.msect-title{font-size:9px;font-weight:700;color:var(--text3);letter-spacing:.5px;text-transform:uppercase;margin-bottom:7px}
+.esr{display:flex;align-items:center;gap:5px;padding:4px 0;border-bottom:1px dashed var(--grid-line)}
+.esr:last-child{border-bottom:none}
+.esr-name{font-size:11px;font-weight:600;flex:1;color:var(--text)}
+.esr-inp{width:65px;padding:4px 7px;border:1px solid var(--border2);border-radius:5px;font-size:11px;font-family:'IBM Plex Mono',monospace;text-align:center;outline:none}
+.esr-inp:focus{border-color:var(--orange)}
+.esr-unit{font-size:10px;color:var(--text3);white-space:nowrap}
+
+/* TOAST */
+.toast{position:fixed;bottom:16px;right:16px;z-index:3000;background:var(--hbg);color:white;padding:8px 14px;border-radius:8px;font-size:11px;font-weight:500;box-shadow:var(--shadow-lg);transform:translateY(55px);transition:transform .3s ease;display:flex;align-items:center;gap:7px}
+.toast.show{transform:translateY(0)}
+.spinner{width:13px;height:13px;border:2px solid rgba(255,255,255,.3);border-top-color:white;border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* Leaflet */
+.leaflet-control-zoom{border:1px solid var(--border)!important;border-radius:8px!important;overflow:hidden;box-shadow:var(--shadow)!important}
+.leaflet-control-zoom-in,.leaflet-control-zoom-out{background:white!important;color:var(--text)!important;border:none!important}
+.leaflet-popup-content-wrapper{border-radius:10px!important;box-shadow:var(--shadow-lg)!important;border:1px solid var(--border)!important}
+.leaflet-popup-content{font-family:'Outfit',sans-serif!important;font-size:12px!important;padding:4px 2px!important;min-width:180px}
+.pop-name{font-family:'Syne',sans-serif;font-weight:700;font-size:13px;margin-bottom:3px}
+.pop-addr{font-size:10px;color:#666;line-height:1.4}
+.pop-seg{margin-top:5px;background:#f5f2eb;border-radius:6px;padding:5px 8px}
+.pop-row{display:flex;justify-content:space-between;font-size:10px;color:#444;padding:1px 0}
+.pop-row span:last-child{font-family:'IBM Plex Mono',monospace;font-weight:700;color:var(--text)}
+.pop-meta{font-family:'IBM Plex Mono',monospace;font-size:9px;color:#999;margin-top:4px}
+
+/* PRINT / PDF */
+@media print{
+  body{overflow:visible!important;height:auto!important}
+  .topbar,.sheet-panel,.map-tb,.click-hint,.toast,.mo{display:none!important}
+  .main{display:block!important}
+  .map-panel{height:auto!important}
+  #map{height:300px!important}
+}
+</style>
+</head>
+<body>
+<div id="loginScreen" style="position:fixed;inset:0;background:#1a1916;display:flex;align-items:center;justify-content:center;z-index:9999;">
+  <div style="background:#fff;border-radius:16px;padding:2rem;max-width:340px;width:90%;text-align:center;font-family:'Outfit',sans-serif;">
+    <div style="font-size:44px;margin-bottom:12px;">🔐</div>
+    <h2 style="font-size:20px;font-weight:700;color:#1a1916;margin-bottom:6px;">Acceso restringido</h2>
+    <p style="font-size:13px;color:#6b7280;margin-bottom:1.5rem;">Ingresa la contraseña de administrador</p>
+    <input type="password" id="claveInput" placeholder="••••••••" onkeydown="if(event.key==='Enter')verificarClave()" style="width:100%;padding:12px 14px;border:1.5px solid #d1d5db;border-radius:10px;font-size:16px;margin-bottom:12px;text-align:center;letter-spacing:3px;box-sizing:border-box;">
+    <button onclick="verificarClave()" style="width:100%;padding:13px;background:#2563eb;color:#fff;border:none;border-radius:10px;font-size:16px;font-weight:700;cursor:pointer;">Entrar</button>
+    <p id="loginError" style="color:#dc2626;font-size:13px;margin-top:8px;display:none;">Contraseña incorrecta.</p>
+  </div>
+</div>
+<script>
+const CLAVE_PLAN='admin2024';
+function verificarClave(){
+  const v=document.getElementById('claveInput').value;
+  if(v===CLAVE_PLAN){document.getElementById('loginScreen').style.display='none';sessionStorage.setItem('monitor_auth','1');}
+  else{document.getElementById('loginError').style.display='block';document.getElementById('claveInput').value='';}
+}
+if(sessionStorage.getItem('monitor_auth')==='1')document.getElementById('loginScreen').style.display='none';
+</script>
+
+<div class="topbar">
+  <div class="topbar-left">
+    <div class="app-icon"><svg viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg></div>
+    <div>
+      <div class="app-title">Ingemaq — Rutas SCZ</div>
+      <div class="app-sub">Santa Cruz de la Sierra · Bolivia</div>
+    </div>
+    <a href="operacion.html" style="color:#9c9a94;font-size:11px;text-decoration:none;margin-left:14px;">← Inicio</a>
+    <a href="monitor-operativo.html" style="color:#9c9a94;font-size:11px;text-decoration:none;margin-left:10px;">🗺️ Monitor</a>
+  </div>
+  <div class="topbar-actions">
+    <label style="font-size:10px;color:#9c9a94;display:flex;align-items:center;gap:4px;">📅
+      <input type="date" id="planDate" onchange="cambiarFecha(this.value)" style="background:#2a2926;color:#f5f4f0;border:1px solid #444;border-radius:6px;padding:4px 6px;font-size:11px;">
+    </label>
+    <div class="save-status"><div class="save-dot" id="saveDot"></div><span id="saveLabel">Guardado</span></div>
+    <button class="btn btn-ghost" onclick="clearAll()">🗑️ Limpiar</button>
+    <button class="btn btn-green" onclick="exportExcel()">📊 Excel</button>
+    <button class="btn btn-orange" onclick="exportPDF()">🖨️ PDF</button>
+  </div>
+</div>
+
+<div class="main">
+  <div class="sheet-panel">
+    <div class="tabs">
+      <div class="tab active" onclick="switchTab('puntos')">📍 Puntos</div>
+      <div class="tab" onclick="switchTab('rutas')">🗺️ Rutas</div>
+    </div>
+
+    <!-- TAB PUNTOS -->
+    <div class="tab-content active" id="tab-puntos">
+      <div class="ph">
+        <div class="ph-top">
+          <span class="ph-title">Tabla de Ubicaciones</span>
+          <span class="badge" id="rowCount">0 filas</span>
+        </div>
+        <div class="fg">
+          <input type="text" id="inName" placeholder="Nombre del punto *" class="full">
+          <input type="text" id="inAddr" placeholder="Dirección / Referencia" class="full">
+          <select id="inCat">
+            <option value="">— Categoría —</option>
+            <option value="cliente">🏢 Cliente</option><option value="deposito">📦 Depósito</option>
+            <option value="entrega">🚚 Entrega</option><option value="oficina">🏛️ Oficina</option>
+            <option value="otro">📍 Otro</option>
+          </select>
+          <select id="inColor">
+            <option value="#2563eb">🔵 Azul</option><option value="#ef4444">🔴 Rojo</option>
+            <option value="#16a34a">🟢 Verde</option><option value="#f59e0b">🟡 Amarillo</option>
+            <option value="#8b5cf6">🟣 Violeta</option><option value="#f97316">🟠 Naranja</option>
+            <option value="#ec4899">🩷 Rosa</option>
+          </select>
+          <input type="number" id="inLat" placeholder="Latitud (-17.78…)" step="0.0001">
+          <input type="number" id="inLng" placeholder="Longitud (-63.18…)" step="0.0001">
+          <button class="btn-add-row full" onclick="addRowManual()">➕ Agregar punto</button>
+        </div>
+      </div>
+      <!-- IMPORT BAR -->
+      <div class="import-bar">
+        <span>📥 Importar desde Excel/CSV</span>
+        <button class="btn btn-green" onclick="document.getElementById('xlsxFile').click()">📂 Abrir archivo</button>
+        <button class="btn btn-ghost" onclick="downloadTemplate()">📋 Plantilla</button>
+        <input type="file" id="xlsxFile" accept=".xlsx,.xls,.csv" style="display:none" onchange="importExcel(this)">
+      </div>
+      <div class="import-hint" id="importHint"></div>
+      <div class="table-wrap">
+        <div class="empty-state" id="emptyState"><div class="icon">🗺️</div><p>Agregá ubicaciones con el formulario,<br>importá desde Excel o hacé clic en el mapa</p></div>
+        <table id="dataTable" style="display:none">
+          <thead><tr><th>#</th><th>Nombre</th><th>Dir.</th><th>Cat.</th><th>Coord.</th><th></th></tr></thead>
+          <tbody id="tableBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- TAB RUTAS -->
+    <div class="tab-content" id="tab-rutas">
+      <div class="route-panel-inner">
+        <div class="route-header">
+          <div class="ph-top">
+            <span class="ph-title">Trazado de Rutas</span>
+            <span class="badge" id="routeCount">0 rutas</span>
+          </div>
+          <p>Nombre · Chofer · Hora de salida · Paradas con tiempo de entrega</p>
+        </div>
+
+        <div class="rb">
+          <div class="editing-badge" id="editingBadge">✏️ Editando ruta — trazá de nuevo para guardar cambios</div>
+          <label>Nombre de la ruta</label>
+          <input type="text" id="rName" placeholder="Ej: Camión 1 — Mañana">
+          <label>Color de la ruta</label>
+          <div class="swatches" id="swatches">
+            <div class="swatch selected" style="background:#e63946" data-color="#e63946" onclick="selSwatch(this)"></div>
+            <div class="swatch" style="background:#2563eb" data-color="#2563eb" onclick="selSwatch(this)"></div>
+            <div class="swatch" style="background:#16a34a" data-color="#16a34a" onclick="selSwatch(this)"></div>
+            <div class="swatch" style="background:#f59e0b" data-color="#f59e0b" onclick="selSwatch(this)"></div>
+            <div class="swatch" style="background:#8b5cf6" data-color="#8b5cf6" onclick="selSwatch(this)"></div>
+            <div class="swatch" style="background:#f97316" data-color="#f97316" onclick="selSwatch(this)"></div>
+            <div class="swatch" style="background:#0e7490" data-color="#0e7490" onclick="selSwatch(this)"></div>
+            <div class="swatch" style="background:#1a1916" data-color="#1a1916" onclick="selSwatch(this)"></div>
+          </div>
+
+          <!-- DRIVER -->
+          <label>🚛 Asignar a chofer (app GPS)</label>
+          <select id="choferAsignado">
+            <option value="">— Sin asignar —</option>
+            <option value="chofer1">Chofer 1</option>
+            <option value="chofer2">Chofer 2</option>
+            <option value="chofer3">Chofer 3</option>
+            <option value="chofer4">Chofer 4</option>
+          </select>
+          <div class="driver-box">
+            <div class="rb-row2">
+              <input type="text" id="driverName" placeholder="Nombre del chofer">
+              <input type="tel" id="driverPhone" placeholder="📱 Teléfono">
+            </div>
+          </div>
+
+          <!-- DEPARTURE TIME -->
+          <label>🕐 Hora de salida</label>
+          <input type="time" id="departureTime" value="08:00">
+
+          <!-- STOPS -->
+          <label>📍 Paradas <span style="color:var(--text3);font-weight:400;font-size:9px">punto · min. entrega</span></label>
+          <div class="stop-rows-wrap" id="stopRows"></div>
+          <button class="btn-add-stop" onclick="addStopRow()">+ Agregar parada</button>
+          <div class="ra">
+            <button class="btn-build" id="buildBtn" onclick="buildRoute()">🗺️ Trazar ruta</button>
+            <button class="btn-clr" onclick="cancelEdit()">✕ Cancelar</button>
+          </div>
+        </div>
+
+        <div class="route-list-wrap">
+          <div class="route-items">
+            <div class="route-empty" id="routeEmpty"><div class="icon">🛣️</div><p>No hay rutas aún.<br>Completá el formulario y trazá.</p></div>
+            <div id="routeList"></div>
+          </div>
+          <div class="consolidado" id="consolidado">
+            <div class="c-title">📊 Consolidado Total <span id="consolCount"></span></div>
+            <div class="c-grid">
+              <div class="c-card"><div class="c-lbl">📏 Distancia</div><div class="c-val" id="cDist">—</div><div class="c-sub" id="cDistS"></div></div>
+              <div class="c-card" style="background:#1e3a5f;border:1px solid #2563eb44"><div class="c-lbl" style="color:#93c5fd">⏱ T. Viaje</div><div class="c-val" style="color:#60a5fa" id="cTravel">—</div><div class="c-sub" style="color:#3b82f6" id="cTravelS"></div></div>
+              <div class="c-card org"><div class="c-lbl" style="color:#fdba74">📦 T. Entrega</div><div class="c-val" id="cDel">—</div><div class="c-sub" style="color:#f97316" id="cDelS"></div></div>
+              <div class="c-card grn"><div class="c-lbl" style="color:#86efac">🚏 Paradas</div><div class="c-val" id="cStops">—</div><div class="c-sub" style="color:#4ade80" id="cStopsS"></div></div>
+              <div class="c-card full"><div class="c-lbl" style="color:#93c5fd">⏰ Tiempo Total (viaje + entregas)</div><div class="c-val" id="cGrand">—</div><div class="c-sub" style="color:#3b82f6" id="cGrandS"></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="map-panel">
+    <div id="map"></div>
+    <div class="map-tb">
+      <button class="map-btn" id="clickBtn" onclick="toggleClick()">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
+        Clic para marcar
+      </button>
+      <button class="map-btn" onclick="fitAll()">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M15 3l2.3 2.3-2.89 2.87 1.42 1.42L18.7 6.7 21 9V3h-6zM3 9l2.3-2.3 2.87 2.89 1.42-1.42L6.7 5.3 9 3H3v6zm6 12l-2.3-2.3 2.89-2.87-1.42-1.42L5.3 17.3 3 15v6h6zm12-6l-2.3 2.3-2.87-2.89-1.42 1.42 2.89 2.87L15 21h6v-6z"/></svg>
+        Ver todo
+      </button>
+    </div>
+    <div class="click-hint" id="clickHint">📍 Hacé clic en el mapa para agregar un punto</div>
+  </div>
+</div>
+
+<!-- MODAL: Nuevo punto -->
+<div class="mo" id="moPoint">
+  <div class="modal">
+    <h3>📍 Nuevo punto en el mapa</h3>
+    <div class="coords" id="mCoords"></div>
+    <label>Nombre *</label><input type="text" id="mName" placeholder="Ej: Ingemaq Sucursal Norte">
+    <label>Dirección</label><input type="text" id="mAddr" placeholder="Ej: Av. Grigotá 1500">
+    <label>Categoría</label>
+    <select id="mCat"><option value="">—</option><option value="cliente">🏢 Cliente</option><option value="deposito">📦 Depósito</option><option value="entrega">🚚 Entrega</option><option value="oficina">🏛️ Oficina</option><option value="otro">📍 Otro</option></select>
+    <label>Color</label>
+    <select id="mColor"><option value="#2563eb">🔵 Azul</option><option value="#ef4444">🔴 Rojo</option><option value="#16a34a">🟢 Verde</option><option value="#f59e0b">🟡 Amarillo</option><option value="#8b5cf6">🟣 Violeta</option><option value="#f97316">🟠 Naranja</option><option value="#ec4899">🩷 Rosa</option></select>
+    <div class="ma">
+      <button class="btn btn-ghost" onclick="closeMo('moPoint')">Cancelar</button>
+      <button class="btn btn-primary" onclick="confirmPoint()">Agregar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Editar ruta -->
+<div class="mo" id="moEdit">
+  <div class="modal">
+    <h3>✏️ Editar ruta</h3>
+    <input type="hidden" id="editId">
+    <label>Nombre</label><input type="text" id="editName">
+    <label>Chofer</label>
+    <div class="rb-row2" style="display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-top:3px">
+      <input type="text" id="editDriver" placeholder="Nombre del chofer">
+      <input type="tel" id="editPhone" placeholder="Teléfono">
+    </div>
+    <label>🚛 Asignar a chofer (app GPS)</label>
+    <select id="editChofer">
+      <option value="">— Sin asignar —</option>
+      <option value="chofer1">Chofer 1</option>
+      <option value="chofer2">Chofer 2</option>
+      <option value="chofer3">Chofer 3</option>
+      <option value="chofer4">Chofer 4</option>
+    </select>
+    <label>Hora de salida</label>
+    <input type="time" id="editDepTime">
+    <div class="msect">
+      <div class="msect-title">⏳ Tiempo entrega por parada (min)</div>
+      <div id="editDelRows"></div>
+    </div>
+    <div class="ma">
+      <button class="btn btn-ghost" onclick="closeMo('moEdit')">Cancelar</button>
+      <button class="btn btn-orange" onclick="loadIntoBuilder()" style="flex:1;justify-content:center;padding:7px;font-size:11px">✏️ Editar paradas</button>
+      <button class="btn btn-primary" onclick="saveEdits()">💾 Guardar</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"><span id="toastMsg"></span></div>
+
+<script>
+// ─── STATE ────────────────────────────────────────────────────────────────────
+let rows=[], markers={}, nextId=1;
+let routes=[], routeLayers={}, nextRId=1;
+let clickMode=false, pendingLL=null, selectedRow=null;
+let selColor='#e63946', editingId=null;
+const CHOFER_LABELS={chofer1:'Chofer 1',chofer2:'Chofer 2',chofer3:'Chofer 3',chofer4:'Chofer 4'};
+const CAT={
+  cliente:{l:'🏢 Cliente',bg:'#dbeafe',tc:'#1d4ed8'},
+  deposito:{l:'📦 Depósito',bg:'#fef3c7',tc:'#92400e'},
+  entrega:{l:'🚚 Entrega',bg:'#dcfce7',tc:'#166534'},
+  oficina:{l:'🏛️ Oficina',bg:'#f3e8ff',tc:'#6b21a8'},
+  otro:{l:'📍 Otro',bg:'#f1f5f9',tc:'#475569'},
+  '':{l:'—',bg:'#f1f5f9',tc:'#475569'}
+};
+
+// ─── MAP ──────────────────────────────────────────────────────────────────────
+const map=L.map('map',{zoomControl:false}).setView([-17.783,-63.182],13);
+L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',{attribution:'© OpenStreetMap © CartoDB',subdomains:'abcd',maxZoom:20}).addTo(map);
+L.control.zoom({position:'bottomright'}).addTo(map);
+map.on('click',e=>{
+  if(!clickMode)return;
+  pendingLL=e.latlng;
+  document.getElementById('mCoords').textContent=`Lat: ${e.latlng.lat.toFixed(6)}, Lng: ${e.latlng.lng.toFixed(6)}`;
+  ['mName','mAddr'].forEach(i=>document.getElementById(i).value='');
+  ['mCat','mColor'].forEach(i=>{document.getElementById(i).value=i==='mColor'?'#2563eb':''});
+  openMo('moPoint');
+});
+
+// ─── ICONS ────────────────────────────────────────────────────────────────────
+const mkIcon=(color,lbl)=>L.divIcon({className:'',html:`<div style="position:relative;width:28px;height:34px"><svg viewBox="0 0 28 34" style="position:absolute;top:0;left:0;width:28px;height:34px;filter:drop-shadow(0 2px 4px rgba(0,0,0,.35))"><path d="M14 0C8.48 0 4 4.48 4 10c0 7.5 10 20 10 20S24 17.5 24 10C24 4.48 19.52 0 14 0z" fill="${color}"/><circle cx="14" cy="10" r="4.5" fill="rgba(255,255,255,.25)"/></svg><div style="position:absolute;top:4px;left:0;width:28px;text-align:center;font-family:'IBM Plex Mono',monospace;font-size:8px;font-weight:700;color:white;line-height:12px">${lbl}</div></div>`,iconSize:[28,34],iconAnchor:[14,34],popupAnchor:[0,-36]});
+const mkStop=(color,lbl,sz=24)=>L.divIcon({className:'',html:`<div style="width:${sz}px;height:${sz}px;border-radius:50%;background:${color};border:2.5px solid white;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:white;box-shadow:0 0 0 2px ${color}55,0 3px 8px rgba(0,0,0,.3);font-family:'IBM Plex Mono',monospace">${lbl}</div>`,iconSize:[sz,sz],iconAnchor:[sz/2,sz/2],popupAnchor:[0,-sz/2-4]});
+const mkSegLbl=(dist,dur,color)=>L.divIcon({className:'',html:`<div style="background:white;border:1.5px solid ${color};border-radius:20px;padding:2px 8px;font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:700;color:${color};white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,.15);display:flex;align-items:center;gap:4px"><span>📏 ${dist}</span><span style="color:#ccc">|</span><span>⏱ ${dur}</span></div>`,iconAnchor:[50,12]});
+
+// ─── FORMATTERS ───────────────────────────────────────────────────────────────
+const fD=m=>m>=1000?`${(m/1000).toFixed(1)} km`:`${Math.round(m)} m`;
+const fT=s=>{if(s<60)return`${Math.round(s)}s`;const m=Math.round(s/60);return m<60?`${m} min`:`${Math.floor(m/60)}h ${m%60}min`};
+const mid=c=>c[Math.floor(c.length/2)];
+const v=id=>document.getElementById(id).value;
+const sv=(id,val)=>{document.getElementById(id).value=val};
+
+// ─── TIME HELPERS ─────────────────────────────────────────────────────────────
+function addSecs(timeStr,secs){
+  const [h,m]=timeStr.split(':').map(Number);
+  let total=h*3600+m*60+Math.round(secs);
+  const hh=Math.floor(total/3600)%24;
+  const mm=Math.floor((total%3600)/60);
+  return`${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}`;
+}
+
+// ─── POINTS ───────────────────────────────────────────────────────────────────
+function addRow(name,addr,cat,color,lat,lng){
+  if(!name.trim()){toast('⚠️ El nombre es obligatorio');return false}
+  if(!lat||!lng){toast('⚠️ Ingresá coordenadas válidas');return false}
+  const id=nextId++;
+  const row={id,name:name.trim(),addr:addr.trim(),cat,color,lat:+lat,lng:+lng};
+  rows.push(row);
+  const c=CAT[cat]||CAT[''];
+  const m=L.marker([row.lat,row.lng],{icon:mkIcon(color,id)}).addTo(map)
+    .bindPopup(`<div class="pop-name" style="color:${color}">${row.name}</div>${row.addr?`<div class="pop-addr">${row.addr}</div>`:''}${cat?`<div class="pop-addr">${c.l}</div>`:''}<div class="pop-meta">${row.lat.toFixed(5)}, ${row.lng.toFixed(5)}</div>`);
+  m.on('click',()=>selRow(id));
+  markers[id]=m; renderTable(); refreshSelects(); return true;
+}
+function addRowManual(){
+  const ok=addRow(v('inName'),v('inAddr'),v('inCat'),v('inColor'),v('inLat'),v('inLng'));
+  if(ok){['inName','inAddr','inLat','inLng'].forEach(i=>sv(i,''));sv('inCat','');markDirty();toast('✅ Punto agregado')}
+}
+function delRow(id){
+  rows=rows.filter(r=>r.id!==id);
+  if(markers[id]){map.removeLayer(markers[id]);delete markers[id]}
+  if(selectedRow===id)selectedRow=null;
+  renderTable();refreshSelects();markDirty();toast('🗑️ Punto eliminado');
+}
+function selRow(id){
+  selectedRow=id;renderTable();
+  const r=rows.find(r=>r.id===id);
+  if(r){map.setView([r.lat,r.lng],16);markers[id]?.openPopup()}
+}
+function renderTable(){
+  const tb=document.getElementById('tableBody'),es=document.getElementById('emptyState'),tbl=document.getElementById('dataTable');
+  document.getElementById('rowCount').textContent=`${rows.length} fila${rows.length!==1?'s':''}`;
+  if(!rows.length){es.style.display='block';tbl.style.display='none';return}
+  es.style.display='none';tbl.style.display='table';
+  tb.innerHTML=rows.map((r,i)=>{const c=CAT[r.cat]||CAT[''];
+    return`<tr onclick="selRow(${r.id})" class="${selectedRow===r.id?'selected':''}"><td>${i+1}</td><td class="name-cell"><div style="display:flex;align-items:center;gap:4px"><span style="width:8px;height:8px;border-radius:50%;background:${r.color};flex-shrink:0;display:inline-block"></span>${r.name}</div></td><td class="addr-cell" title="${r.addr}">${r.addr||'—'}</td><td>${r.cat?`<span class="cat-badge" style="background:${c.bg};color:${c.tc}">${c.l}</span>`:'<span style="color:#ccc">—</span>'}</td><td class="coord-cell">${r.lat.toFixed(4)},<br>${r.lng.toFixed(4)}</td><td><button class="del-btn" onclick="event.stopPropagation();delRow(${r.id})">×</button></td></tr>`;
+  }).join('');
+}
+
+// ─── IMPORT EXCEL ─────────────────────────────────────────────────────────────
+function importExcel(input){
+  const file=input.files[0];if(!file)return;
+  const hint=document.getElementById('importHint');
+  const reader=new FileReader();
+  reader.onload=e=>{
+    try{
+      const wb=XLSX.read(e.target.result,{type:'array'});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      const data=XLSX.utils.sheet_to_json(ws,{defval:''});
+      if(!data.length){hint.textContent='⚠️ El archivo está vacío.';hint.classList.add('visible');return}
+
+      // Normalize headers (lowercase, no accents, no spaces)
+      const norm=s=>s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,'');
+      const headers=Object.keys(data[0]).map(norm);
+      const findCol=(keys)=>{
+        for(const k of keys){const i=headers.findIndex(h=>h.includes(k));if(i>=0)return Object.keys(data[0])[i]}
+        return null;
+      };
+      const colName=findCol(['nombre','name']);
+      const colAddr=findCol(['direccion','address','dir']);
+      const colCat=findCol(['categoria','category','cat']);
+      const colColor=findCol(['color']);
+      const colLat=findCol(['lat','latitud']);
+      const colLng=findCol(['lng','lon','longitud']);
+
+      if(!colName||!colLat||!colLng){
+        hint.textContent='⚠️ Columnas requeridas no encontradas. Usá la plantilla.';
+        hint.classList.add('visible');return;
+      }
+
+      let added=0,skipped=0;
+      const CAT_MAP={'cliente':'cliente','deposito':'deposito','depósito':'deposito','entrega':'entrega','oficina':'oficina','otro':'otro'};
+      data.forEach(row=>{
+        const name=String(row[colName]||'').trim();
+        const addr=String(row[colAddr]||'').trim();
+        const rawCat=norm(String(row[colCat]||''));
+        const cat=CAT_MAP[rawCat]||'';
+        const color=String(row[colColor]||'#2563eb').trim();
+        const lat=parseFloat(row[colLat]);
+        const lng=parseFloat(row[colLng]);
+        if(!name||isNaN(lat)||isNaN(lng)){skipped++;return}
+        const ok=addRow(name,addr,cat,color,lat,lng);
+        if(ok)added++;else skipped++;
+      });
+      hint.textContent=`✅ ${added} puntos importados${skipped?` · ${skipped} omitidos`:''}.`;
+      hint.classList.add('visible');
+      if(rows.length)fitAll();
+      toast(`📥 ${added} puntos importados`);markDirty();
+    }catch(err){
+      hint.textContent=`❌ Error al leer el archivo: ${err.message}`;
+      hint.classList.add('visible');
+    }
+    input.value='';
+    setTimeout(()=>hint.classList.remove('visible'),6000);
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function downloadTemplate(){
+  const ws=XLSX.utils.aoa_to_sheet([
+    ['Nombre','Dirección','Categoría','Color','Latitud','Longitud'],
+    ['Ingemaq Central','Unnamed Road 226','cliente','#2563eb',-17.7900,-63.1820],
+    ['Ingemaq Grigotá','Av. Grigotá','cliente','#ef4444',-17.8100,-63.2050],
+  ]);
+  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Puntos');
+  XLSX.writeFile(wb,'plantilla_puntos_ingemaq.xlsx');
+  toast('📋 Plantilla descargada');
+}
+
+// ─── TABS ─────────────────────────────────────────────────────────────────────
+function switchTab(name){
+  document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('active',(i===0&&name==='puntos')||(i===1&&name==='rutas')));
+  document.getElementById('tab-puntos').classList.toggle('active',name==='puntos');
+  document.getElementById('tab-rutas').classList.toggle('active',name==='rutas');
+}
+
+// ─── ROUTE BUILDER ────────────────────────────────────────────────────────────
+function selSwatch(el){document.querySelectorAll('.swatch').forEach(s=>s.classList.remove('selected'));el.classList.add('selected');selColor=el.dataset.color}
+function setSwatchColor(c){document.querySelectorAll('.swatch').forEach(s=>s.classList.toggle('selected',s.dataset.color===c));selColor=c}
+function refreshSelects(){
+  document.querySelectorAll('.stop-select').forEach(sel=>{
+    const val=sel.value;
+    sel.innerHTML='<option value="">— Punto —</option>'+rows.map(r=>`<option value="${r.id}"${r.id==val?' selected':''}>${r.id}. ${r.name}</option>`).join('');
+  });
+}
+function addStopRow(ptId='',delMin=0){
+  const wrap=document.getElementById('stopRows');
+  const div=document.createElement('div');div.className='stop-row';
+  div.innerHTML=`<select class="stop-select"><option value="">— Punto —</option>${rows.map(r=>`<option value="${r.id}"${r.id==ptId?' selected':''}>${r.id}. ${r.name}</option>`).join('')}</select><input type="number" class="stop-del" placeholder="0" min="0" step="5" value="${delMin||''}" title="Tiempo de entrega (min)"><span class="del-unit">min</span><button class="btn-rm" onclick="this.parentElement.remove()">×</button>`;
+  wrap.appendChild(div);
+}
+function clearBuilder(){
+  sv('rName','');sv('driverName','');sv('driverPhone','');sv('departureTime','08:00');sv('choferAsignado','');
+  document.getElementById('stopRows').innerHTML='';
+  editingId=null;
+  document.getElementById('editingBadge').classList.remove('visible');
+  addStopRow();addStopRow();
+}
+function cancelEdit(){clearBuilder();toast('Edición cancelada')}
+
+// ─── BUILD ROUTE ──────────────────────────────────────────────────────────────
+async function buildRoute(){
+  const name=v('rName').trim()||`Ruta ${nextRId}`;
+  const driver=v('driverName').trim();
+  const phone=v('driverPhone').trim();
+  const choferId=v('choferAsignado')||'';
+  const depTime=v('departureTime')||'08:00';
+  const stopEls=[...document.querySelectorAll('#stopRows .stop-row')];
+  const ids=stopEls.map(r=>parseInt(r.querySelector('.stop-select').value)).filter(x=>!isNaN(x)&&x);
+  const delMins=stopEls.map(r=>parseFloat(r.querySelector('.stop-del').value)||0);
+  if(ids.length<2){toast('⚠️ Seleccioná al menos 2 paradas');return}
+  const pts=ids.map(id=>rows.find(r=>r.id===id)).filter(Boolean);
+  if(pts.length<2){toast('⚠️ Puntos no encontrados');return}
+
+  if(editingId!==null){
+    if(routeLayers[editingId])routeLayers[editingId].forEach(l=>map.removeLayer(l));
+    routes=routes.filter(r=>r.id!==editingId);
+    delete routeLayers[editingId];
+  }
+
+  const color=selColor, routeId=nextRId++;
+  const layers=[], segments=[];
+  const btn=document.getElementById('buildBtn');
+  btn.disabled=true;btn.innerHTML='<div class="spinner"></div> Calculando…';
+  toast('⏳ Calculando ruta por calles… (puede tardar hasta 10 seg)');
+
+  // OSRM: hasta 3 intentos con delay, 2 servidores distintos
+  async function osrmFetch(coords){
+    const urls=[
+      `https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson&steps=true`,
+      `https://routing.openstreetmap.de/routed-car/route/v1/driving/${coords}?overview=full&geometries=geojson&steps=true`
+    ];
+    for(let attempt=0;attempt<3;attempt++){
+      for(const url of urls){
+        try{
+          if(attempt>0)await new Promise(r=>setTimeout(r,attempt*1200));
+          const resp=await fetch(url,{signal:AbortSignal.timeout(12000)});
+          if(!resp.ok)continue;
+          const data=await resp.json();
+          if(data.code==='Ok')return data;
+        }catch(err){continue}
+      }
+    }
+    return null;
+  }
+
+  try{
+    const coords=pts.map(p=>`${p.lng},${p.lat}`).join(';');
+    const data=await osrmFetch(coords);
+    if(!data)throw new Error('no route');
+
+    const legs=data.routes[0].legs;
+    const fullG=data.routes[0].geometry.coordinates.map(c=>[c[1],c[0]]);
+    layers.push(L.polyline(fullG,{color,weight:12,opacity:0.12}).addTo(map));
+
+    // Build arrival/departure times for each stop
+    let runningTime=0; // seconds from departure
+    const stopTimes=[]; // {arrive, depart} strings
+    stopTimes.push({arrive:depTime, depart:addSecs(depTime,delMins[0]*60)});
+
+    legs.forEach((leg,i)=>{
+      const dist=leg.distance, dur=dist/7.22;
+      const segC=leg.steps.flatMap(s=>s.geometry.coordinates.map(c=>[c[1],c[0]]));
+      layers.push(L.polyline(segC,{color,weight:3.5,opacity:0.92}).addTo(map));
+      layers.push(L.marker(mid(segC),{icon:mkSegLbl(fD(dist),fT(dur),color),interactive:false}).addTo(map));
+      segments.push({fromName:pts[i].name,toName:pts[i+1].name,dist,dur,delMin:delMins[i],geom:segC});
+      const arrTime=addSecs(stopTimes[i].depart, dur);
+      const depTimeNext=addSecs(arrTime, delMins[i+1]*60);
+      stopTimes.push({arrive:arrTime, depart:depTimeNext});
+    });
+
+    pts.forEach((p,i)=>{
+      const lbl=i===0?'▶':i===pts.length-1?'■':(i+1);
+      const dMin=delMins[i]||0;
+      const st=stopTimes[i];
+      const timeInfo=`<div class="pop-seg"><div class="pop-row"><span>🕐 Llegada</span><span>${st.arrive}</span></div>${dMin?`<div class="pop-row"><span>📦 Entrega</span><span>${dMin} min</span></div><div class="pop-row"><span>🚀 Salida</span><span>${st.depart}</span></div>`:''}</div>`;
+      const legInfo=i<legs.length?`<div class="pop-seg" style="margin-top:4px"><div class="pop-row"><span>📏 Tramo ${i+1}</span><span>${fD(legs[i].distance)}</span></div><div class="pop-row"><span>⏱ Viaje</span><span>${fT(legs[i].distance/7.22)}</span></div>${dMin?`<div class="pop-row"><span>→</span><span>${pts[i+1].name}</span></div>`:''}</div>`:'';
+      layers.push(L.marker([p.lat,p.lng],{icon:mkStop(color,lbl,26)}).addTo(map)
+        .bindPopup(`<div class="pop-name" style="color:${color}">${name} · Parada ${i+1}</div><div class="pop-addr">${p.name}</div>${p.addr?`<div class="pop-addr">${p.addr}</div>`:''}${timeInfo}${legInfo}<div class="pop-meta">${p.lat.toFixed(5)}, ${p.lng.toFixed(5)}</div>`,{maxWidth:260}));
+    });
+
+    const tDist=legs.reduce((s,l)=>s+l.distance,0);
+    const tTravel=legs.reduce((s,l)=>s+l.distance/7.22,0);
+    const tDel=delMins.reduce((s,m)=>s+m*60,0);
+    routes.push({id:routeId,name,color,driver,phone,choferId,depTime,stopIds:ids,stopNames:pts.map(p=>p.name),delMins,stopTimes,segments,tDist,tTravel,tDel,fromOSRM:true});
+    routeLayers[routeId]=layers;
+    renderRouteList();clearBuilder();
+    map.fitBounds(L.latLngBounds(fullG).pad(0.1));
+    markDirty();toast(`✅ "${name}" · ${fD(tDist)} · viaje ${fT(tTravel)} · entrega ${fT(tDel)}`);
+  }catch(e){
+    const R=6371000;
+    const hav=(a,b)=>{const dLa=(b.lat-a.lat)*Math.PI/180,dLo=(b.lng-a.lng)*Math.PI/180,x=Math.sin(dLa/2)**2+Math.cos(a.lat*Math.PI/180)*Math.cos(b.lat*Math.PI/180)*Math.sin(dLo/2)**2;return 2*R*Math.asin(Math.sqrt(x))};
+    layers.push(L.polyline(pts.map(p=>[p.lat,p.lng]),{color,weight:12,opacity:0.1}).addTo(map));
+
+    let runT=delMins[0]*60;
+    const stopTimes=[{arrive:depTime,depart:addSecs(depTime,delMins[0]*60)}];
+    pts.forEach((p,i)=>{
+      if(i<pts.length-1){
+        const q=pts[i+1],dist=hav(p,q)*1.35,dur=dist/7.22;
+        const sC=[[p.lat,p.lng],[q.lat,q.lng]];
+        layers.push(L.polyline(sC,{color,weight:3.5,opacity:0.9,dashArray:'7 4'}).addTo(map));
+        layers.push(L.marker([(p.lat+q.lat)/2,(p.lng+q.lng)/2],{icon:mkSegLbl(fD(dist),fT(dur),color),interactive:false}).addTo(map));
+        segments.push({fromName:p.name,toName:q.name,dist,dur,delMin:delMins[i],geom:sC});
+        const arr=addSecs(stopTimes[i].depart,dur);
+        stopTimes.push({arrive:arr,depart:addSecs(arr,delMins[i+1]*60)});
+      }
+    });
+    pts.forEach((p,i)=>{
+      const lbl=i===0?'▶':i===pts.length-1?'■':(i+1),dMin=delMins[i]||0,st=stopTimes[i];
+      layers.push(L.marker([p.lat,p.lng],{icon:mkStop(color,lbl,26)}).addTo(map)
+        .bindPopup(`<div class="pop-name" style="color:${color}">${name} · Parada ${i+1}</div><div class="pop-addr">${p.name}</div><div class="pop-seg"><div class="pop-row"><span>🕐 Llegada</span><span>${st.arrive}</span></div>${dMin?`<div class="pop-row"><span>📦 ${dMin} min</span><span>🚀 ${st.depart}</span></div>`:''}</div>`,{maxWidth:240}));
+    });
+    const tDist=segments.reduce((s,l)=>s+l.dist,0),tTravel=segments.reduce((s,l)=>s+l.dur,0),tDel=delMins.reduce((s,m)=>s+m*60,0);
+    routes.push({id:routeId,name,color,driver,phone,choferId,depTime,stopIds:ids,stopNames:pts.map(p=>p.name),delMins,stopTimes,segments,tDist,tTravel,tDel,fromOSRM:false});
+    routeLayers[routeId]=layers;
+    renderRouteList();clearBuilder();
+    map.fitBounds(L.latLngBounds(pts.map(p=>[p.lat,p.lng])).pad(0.15));
+    markDirty();toast(`⚠️ OSRM no respondió — "${name}" trazado en línea recta (estimado). Intentá de nuevo en unos segundos.`);
+  }finally{btn.disabled=false;btn.innerHTML='🗺️ Trazar ruta'}
+}
+
+// ─── RENDER ROUTES + CONSOLIDADO ─────────────────────────────────────────────
+function toggleSeg(id){const el=document.getElementById(`seg-${id}`);el.classList.toggle('open');document.querySelector(`[data-ex="${id}"]`).textContent=el.classList.contains('open')?'▲':'▼'}
+function toggleVis(id,btn){if(!routeLayers[id])return;const vis=btn.dataset.vis!=='false';routeLayers[id].forEach(l=>vis?map.removeLayer(l):map.addLayer(l));btn.dataset.vis=vis?'false':'true';btn.textContent=vis?'🙈':'👁️'}
+function delRoute(id){
+  if(routeLayers[id]){routeLayers[id].forEach(l=>map.removeLayer(l));delete routeLayers[id]}
+  routes=routes.filter(r=>r.id!==id);
+  if(editingId===id)clearBuilder();
+  renderRouteList();markDirty();toast('🗑️ Ruta eliminada');
+}
+
+function renderRouteList(){
+  const list=document.getElementById('routeList'),empty=document.getElementById('routeEmpty');
+  document.getElementById('routeCount').textContent=`${routes.length} ruta${routes.length!==1?'s':''}`;
+  if(!routes.length){empty.style.display='block';list.innerHTML='';document.getElementById('consolidado').classList.remove('visible');return}
+  empty.style.display='none';
+
+  list.innerHTML=routes.map(r=>{
+    const grand=r.tTravel+r.tDel;
+    const lastArr=r.stopTimes?r.stopTimes[r.stopTimes.length-1]?.arrive:'';
+    const segRows=r.segments.map((seg,i)=>{
+      const dMin=seg.delMin||0,st=r.stopTimes?r.stopTimes[i]:null;
+      return`<div class="seg-item">
+        <div class="seg-conn"><div class="seg-dot" style="background:${r.color}"></div><div class="seg-line" style="background:${r.color}44"></div></div>
+        <div class="seg-body">
+          <div class="seg-name">${seg.fromName}${dMin?`<span class="seg-del-tag">📦 ${dMin}min</span>`:''}</div>
+          ${st?`<div class="seg-arrive">🕐 Llegada: ${st.arrive}</div>${dMin?`<div class="seg-depart">🚀 Salida: ${st.depart}</div>`:''}`:''}
+          <div class="seg-arrow"><div class="seg-line2" style="background:${r.color}44"></div><div class="seg-badge" style="border-color:${r.color}44;color:${r.color}"><span>📏 ${fD(seg.dist)}</span><span class="sep">|</span><span>⏱ ${fT(seg.dur)}</span></div><div class="seg-line2" style="background:${r.color}44"></div></div>
+          <div class="seg-dest" style="color:${r.color}88">→ ${seg.toName}</div>
+        </div>
+      </div>`;
+    }).join('');
+    const lastST=r.stopTimes?r.stopTimes[r.stopTimes.length-1]:null;
+    const lastDMin=r.delMins[r.delMins.length-1]||0;
+    const finalRow=`<div class="seg-item"><div class="seg-conn"><div class="seg-dot" style="background:${r.color}"></div></div><div class="seg-body"><div class="seg-name" style="color:${r.color}">${r.stopNames[r.stopNames.length-1]}${lastDMin?`<span class="seg-del-tag">📦 ${lastDMin}min</span>`:''} <span style="font-size:9px;color:var(--text3)">(final)</span></div>${lastST?`<div class="seg-arrive">🕐 Llegada: ${lastST.arrive}</div>`:''}</div></div>`;
+
+    return`<div class="route-item">
+      <div class="ri-header">
+        <div class="ri-bar" style="background:${r.color}"></div>
+        <div class="ri-info">
+          <div class="ri-name">${r.name}</div>
+          ${r.choferId?`<div class="ri-driver" style="color:var(--accent);font-weight:700;">📲 ${CHOFER_LABELS[r.choferId]||r.choferId}</div>`:''}
+          ${r.driver?`<div class="ri-driver">🚛 ${r.driver}${r.phone?` · 📱 ${r.phone}`:''}</div>`:''}
+          <div class="ri-pills">
+            <span class="pill pill-b">🕐 sal. ${r.depTime||'—'}</span>
+            ${lastArr?`<span class="pill pill-g">🏁 lleg. ${lastArr}</span>`:''}
+            <span class="pill pill-b">📏 ${fD(r.tDist)}</span>
+            <span class="pill pill-b">⏱ ${fT(r.tTravel)}</span>
+            ${r.tDel?`<span class="pill pill-o">📦 ${fT(r.tDel)}</span>`:''}
+            <span class="pill pill-g">🏁 ${fT(grand)}</span>
+          </div>
+        </div>
+        <button class="ri-btn" data-ex="${r.id}" onclick="toggleSeg(${r.id})" title="Ver tramos">▼</button>
+        <button class="ri-btn" onclick="openEditModal(${r.id})" title="Editar" style="color:var(--orange)">✏️</button>
+        <button class="ri-btn" data-vis="true" onclick="toggleVis(${r.id},this)" title="Mostrar/ocultar">👁️</button>
+        <button class="ri-del" onclick="delRoute(${r.id})" title="Eliminar">×</button>
+      </div>
+      <div class="seg-list" id="seg-${r.id}">${segRows}${finalRow}</div>
+    </div>`;
+  }).join('');
+
+  // CONSOLIDADO
+  const panel=document.getElementById('consolidado');
+  panel.classList.add('visible');
+  document.getElementById('consolCount').textContent=`${routes.length} ruta${routes.length!==1?'s':''}`;
+  const gDist=routes.reduce((s,r)=>s+r.tDist,0);
+  const gTravel=routes.reduce((s,r)=>s+r.tTravel,0);
+  const gDel=routes.reduce((s,r)=>s+r.tDel,0);
+  const gStops=routes.reduce((s,r)=>s+r.stopNames.length,0);
+  document.getElementById('cDist').textContent=fD(gDist);
+  document.getElementById('cDistS').textContent=routes.map(r=>fD(r.tDist)).join(' + ');
+  document.getElementById('cTravel').textContent=fT(gTravel);
+  document.getElementById('cTravelS').textContent=routes.map(r=>fT(r.tTravel)).join(' + ');
+  document.getElementById('cDel').textContent=fT(gDel);
+  document.getElementById('cDelS').textContent=gDel?routes.map(r=>fT(r.tDel)).join(' + '):'Sin tiempos de entrega';
+  document.getElementById('cStops').textContent=`${gStops} paradas`;
+  document.getElementById('cStopsS').textContent=routes.map(r=>`${r.stopNames.length} en ${r.name}`).join(' · ');
+  document.getElementById('cGrand').textContent=fT(gTravel+gDel);
+  document.getElementById('cGrandS').textContent=`Viaje ${fT(gTravel)} + Entregas ${fT(gDel)}`;
+}
+
+// ─── EDIT MODAL ───────────────────────────────────────────────────────────────
+function openEditModal(id){
+  const r=routes.find(r=>r.id===id);if(!r)return;
+  sv('editId',id);sv('editName',r.name);sv('editDriver',r.driver||'');sv('editPhone',r.phone||'');sv('editDepTime',r.depTime||'08:00');sv('editChofer',r.choferId||'');
+  document.getElementById('editDelRows').innerHTML=r.stopNames.map((nm,i)=>`<div class="esr"><div class="esr-name">${i===0?'▶':i===r.stopNames.length-1?'■':`${i+1}.`} ${nm}</div><input type="number" class="esr-inp" data-si="${i}" value="${r.delMins[i]||0}" min="0" step="5"><span class="esr-unit">min</span></div>`).join('');
+  openMo('moEdit');
+}
+function saveEdits(){
+  const id=parseInt(v('editId'));
+  const r=routes.find(r=>r.id===id);if(!r)return;
+  r.name=v('editName').trim()||r.name;r.driver=v('editDriver').trim();r.phone=v('editPhone').trim();r.depTime=v('editDepTime');r.choferId=v('editChofer')||'';
+  document.querySelectorAll('#editDelRows .esr-inp').forEach(inp=>{
+    const i=parseInt(inp.dataset.si);r.delMins[i]=parseFloat(inp.value)||0;
+    if(i<r.segments.length)r.segments[i].delMin=r.delMins[i];
+  });
+  r.tDel=r.delMins.reduce((s,m)=>s+m*60,0);
+  // Recalculate stop times
+  if(r.stopTimes){
+    r.stopTimes[0]={arrive:r.depTime,depart:addSecs(r.depTime,r.delMins[0]*60)};
+    r.segments.forEach((seg,i)=>{
+      const arr=addSecs(r.stopTimes[i].depart,seg.dur);
+      r.stopTimes[i+1]={arrive:arr,depart:addSecs(arr,(r.delMins[i+1]||0)*60)};
+    });
+  }
+  renderRouteList();closeMo('moEdit');markDirty();toast(`✅ Ruta "${r.name}" actualizada`);
+}
+function loadIntoBuilder(){
+  const id=parseInt(v('editId'));const r=routes.find(r=>r.id===id);if(!r)return;
+  closeMo('moEdit');
+  sv('rName',r.name);sv('driverName',r.driver||'');sv('driverPhone',r.phone||'');sv('departureTime',r.depTime||'08:00');sv('choferAsignado',r.choferId||'');
+  setSwatchColor(r.color);
+  document.getElementById('stopRows').innerHTML='';
+  r.stopIds.forEach((sid,i)=>addStopRow(sid,r.delMins[i]||0));
+  editingId=id;document.getElementById('editingBadge').classList.add('visible');
+  switchTab('rutas');toast('✏️ Ruta cargada en el editor');
+}
+
+// ─── MAP CONTROLS ─────────────────────────────────────────────────────────────
+function fitAll(){
+  if(!rows.length){map.setView([-17.783,-63.182],13);return}
+  map.fitBounds(L.latLngBounds(rows.map(r=>[r.lat,r.lng])).pad(0.15));
+}
+function toggleClick(){
+  clickMode=!clickMode;
+  document.getElementById('clickBtn').classList.toggle('active',clickMode);
+  map.getContainer().style.cursor=clickMode?'crosshair':'';
+  document.getElementById('clickHint').classList.toggle('visible',clickMode);
+}
+function clearAll(){
+  if(!rows.length&&!routes.length)return;
+  if(!confirm('¿Eliminar todos los puntos y rutas?'))return;
+  rows.forEach(r=>markers[r.id]&&map.removeLayer(markers[r.id]));
+  routes.forEach(r=>routeLayers[r.id]&&routeLayers[r.id].forEach(l=>map.removeLayer(l)));
+  rows=[];markers={};routes=[];routeLayers={};selectedRow=null;editingId=null;
+  renderTable();renderRouteList();refreshSelects();markDirty();toast('🧹 Todo limpiado');
+}
+
+// ─── MODALS ───────────────────────────────────────────────────────────────────
+function openMo(id){document.getElementById(id).classList.add('open');setTimeout(()=>{const f=document.getElementById(id).querySelector('input[type=text]');if(f)f.focus()},200)}
+function closeMo(id){document.getElementById(id).classList.remove('open');if(id==='moPoint')pendingLL=null}
+function confirmPoint(){
+  const name=v('mName');if(!name.trim()){document.getElementById('mName').style.borderColor='#ef4444';return}
+  const ok=addRow(name,v('mAddr'),v('mCat'),v('mColor'),pendingLL.lat,pendingLL.lng);
+  if(ok){closeMo('moPoint');if(clickMode)toggleClick();markDirty();toast('✅ Punto agregado desde el mapa')}
+}
+document.querySelectorAll('.mo').forEach(o=>o.addEventListener('click',e=>{if(e.target===e.currentTarget)closeMo(e.currentTarget.id)}));
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape')document.querySelectorAll('.mo.open').forEach(o=>closeMo(o.id));
+  if(e.key==='Enter'&&document.getElementById('moPoint').classList.contains('open'))confirmPoint();
+});
+
+// ─── EXPORT EXCEL ─────────────────────────────────────────────────────────────
+function exportExcel(){
+  if(!rows.length){toast('⚠️ No hay datos');return}
+  let html=`<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="UTF-8"></head><body>
+<table border="1" style="border-collapse:collapse;font-family:Calibri;font-size:11pt">
+<tr style="background:#1a1916;color:white;font-weight:bold"><td>№</td><td>Nombre</td><td>Dirección</td><td>Categoría</td><td>Latitud</td><td>Longitud</td><td>Google Maps</td></tr>`;
+  rows.forEach((r,i)=>{const bg=i%2?'#f5f2eb':'#fff';html+=`<tr style="background:${bg}"><td>${i+1}</td><td style="font-weight:600">${r.name}</td><td>${r.addr}</td><td>${(CAT[r.cat]||CAT['']).l}</td><td style="font-family:monospace">${r.lat.toFixed(6)}</td><td style="font-family:monospace">${r.lng.toFixed(6)}</td><td><a href="https://www.google.com/maps?q=${r.lat},${r.lng}">Ver mapa</a></td></tr>`});
+  if(routes.length){
+    html+=`<tr><td colspan="7"></td></tr><tr style="background:#1a1916;color:white;font-weight:bold"><td colspan="7">RUTAS TRAZADAS</td></tr>`;
+    html+=`<tr style="background:#374151;color:white;font-weight:bold"><td>Ruta</td><td>Chofer</td><td>Teléfono</td><td>Sal.</td><td>Parada</td><td>Punto</td><td>Llegada</td></tr>`;
+    routes.forEach(r=>{
+      r.stopNames.forEach((nm,i)=>{const st=r.stopTimes?r.stopTimes[i]:null,dMin=r.delMins[i]||0,bg=i%2?'#f9fafb':'#fff';
+        html+=`<tr style="background:${bg}"><td style="color:${r.color};font-weight:700">${r.name}</td><td>${i===0?(r.driver||'—'):''}</td><td>${i===0?(r.phone||'—'):''}</td><td>${i===0?(r.depTime||'—'):''}</td><td>${i===0?'▶':i===r.stopNames.length-1?'■':i+1}</td><td>${nm}${dMin?` (📦${dMin}min)`:''}</td><td style="font-family:monospace;font-weight:${i===r.stopNames.length-1?700:400}">${st?st.arrive:'—'}</td></tr>`;
+      });
+      html+=`<tr style="background:#f0fdf4;font-weight:700"><td style="color:${r.color}">${r.name} TOTAL</td><td>${r.driver||'—'}</td><td colspan="2">${r.stopNames.length} paradas</td><td colspan="1">${fD(r.tDist)}</td><td>Viaje ${fT(r.tTravel)}</td><td style="color:#16a34a">Total ${fT(r.tTravel+r.tDel)}</td></tr>`;
+    });
+    const gD=routes.reduce((s,r)=>s+r.tDist,0),gT=routes.reduce((s,r)=>s+r.tTravel,0),gDl=routes.reduce((s,r)=>s+r.tDel,0);
+    html+=`<tr><td colspan="7"></td></tr><tr style="background:#1e3a5f;color:white;font-weight:bold"><td colspan="3">📊 CONSOLIDADO TOTAL</td><td>Distancia</td><td>T. Viaje</td><td>T. Entregas</td><td>⏰ Total</td></tr><tr style="background:#dbeafe;font-weight:700"><td colspan="3">${routes.length} rutas · ${routes.reduce((s,r)=>s+r.stopNames.length,0)} paradas</td><td style="color:#1d4ed8">${fD(gD)}</td><td style="color:#1d4ed8">${fT(gT)}</td><td style="color:#f97316">${fT(gDl)}</td><td style="color:#16a34a;font-size:13pt">${fT(gT+gDl)}</td></tr>`;
+  }
+  html+=`</table></body></html>`;
+  const a=Object.assign(document.createElement('a'),{href:URL.createObjectURL(new Blob([html],{type:'application/vnd.ms-excel'})),download:'ingemaq_rutas.xls'});a.click();URL.revokeObjectURL(a.href);
+  toast('✅ Excel exportado');
+}
+
+// ─── EXPORT PDF ───────────────────────────────────────────────────────────────
+async function exportPDF(){
+  if(!routes.length&&!rows.length){toast('⚠️ No hay datos para exportar');return}
+  toast('⏳ Generando PDF…');
+  let mapImg='';
+  try{
+    const canvas=await html2canvas(document.getElementById('map'),{useCORS:true,allowTaint:true,scale:1.5,logging:false});
+    mapImg=canvas.toDataURL('image/png');
+  }catch(e){console.warn('Map capture failed',e)}
+
+  const today=new Date().toLocaleDateString('es-BO',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+  const gDist=routes.reduce((s,r)=>s+r.tDist,0);
+  const gTravel=routes.reduce((s,r)=>s+r.tTravel,0);
+  const gDel=routes.reduce((s,r)=>s+r.tDel,0);
+
+  const routeBlocks=routes.map(r=>{
+    const rows2=r.stopNames.map((nm,i)=>{
+      const st=r.stopTimes?r.stopTimes[i]:null;
+      const dMin=r.delMins[i]||0;
+      const isFirst=i===0,isLast=i===r.stopNames.length-1;
+      const bg=i%2===0?'#f9fafb':'#fff';
+      return`<tr style="background:${bg}">
+        <td style="padding:5px 8px;font-weight:600;color:${isLast?r.color:'#374151'}">${isFirst?'▶ Salida':isLast?'■ Destino':`${i+1}`}</td>
+        <td style="padding:5px 8px;font-weight:600">${nm}</td>
+        <td style="padding:5px 8px;text-align:center;font-family:monospace;color:#059669;font-weight:700">${st?st.arrive:'—'}</td>
+        <td style="padding:5px 8px;text-align:center;color:#f97316;font-weight:600">${dMin?dMin+' min':'—'}</td>
+        <td style="padding:5px 8px;text-align:center;font-family:monospace;color:#6b7280">${st&&dMin?st.depart:'—'}</td>
+        ${i<r.segments.length?`<td style="padding:5px 8px;text-align:center;font-family:monospace;font-size:11px;color:#6b7280">${fD(r.segments[i].dist)} · ${fT(r.segments[i].dur)}</td>`:'<td style="padding:5px 8px;text-align:center;color:#9ca3af">Final</td>'}
+      </tr>`;
+    }).join('');
+    return`
+    <div style="margin-bottom:24px;border:2px solid ${r.color}22;border-radius:10px;overflow:hidden;page-break-inside:avoid">
+      <div style="background:${r.color};color:white;padding:10px 14px;display:flex;justify-content:space-between;align-items:center">
+        <div>
+          <div style="font-size:16px;font-weight:700">${r.name}</div>
+          ${r.driver?`<div style="font-size:12px;opacity:.9">🚛 ${r.driver}${r.phone?` &nbsp;·&nbsp; 📱 ${r.phone}`:''}</div>`:''}
+        </div>
+        <div style="text-align:right;font-size:12px;opacity:.9">
+          <div>🕐 Salida: <strong>${r.depTime||'—'}</strong></div>
+          <div>🏁 Llegada: <strong>${r.stopTimes?r.stopTimes[r.stopTimes.length-1].arrive:'—'}</strong></div>
+        </div>
+      </div>
+      <table style="width:100%;border-collapse:collapse;font-family:sans-serif;font-size:12px">
+        <thead><tr style="background:#f3f4f6">
+          <th style="padding:5px 8px;text-align:left;font-size:10px;color:#6b7280;font-weight:600">#</th>
+          <th style="padding:5px 8px;text-align:left;font-size:10px;color:#6b7280;font-weight:600">Punto</th>
+          <th style="padding:5px 8px;text-align:center;font-size:10px;color:#6b7280;font-weight:600">Llegada</th>
+          <th style="padding:5px 8px;text-align:center;font-size:10px;color:#6b7280;font-weight:600">Entrega</th>
+          <th style="padding:5px 8px;text-align:center;font-size:10px;color:#6b7280;font-weight:600">Salida</th>
+          <th style="padding:5px 8px;text-align:center;font-size:10px;color:#6b7280;font-weight:600">Tramo</th>
+        </tr></thead>
+        <tbody>${rows2}</tbody>
+      </table>
+      <div style="background:#f9fafb;padding:7px 14px;display:flex;gap:16px;font-size:11px;color:#6b7280;border-top:1px solid #e5e7eb">
+        <span>📏 ${fD(r.tDist)}</span>
+        <span>⏱ Viaje: ${fT(r.tTravel)}</span>
+        ${r.tDel?`<span>📦 Entregas: ${fT(r.tDel)}</span>`:''}
+        <span style="font-weight:700;color:${r.color}">🏁 Total: ${fT(r.tTravel+r.tDel)}</span>
+      </div>
+    </div>`;
+  }).join('');
+
+  const html=`<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
+  <title>Ingemaq — Rutas SCZ</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:'Helvetica Neue',Arial,sans-serif;color:#1a1a1a;padding:20px;max-width:900px;margin:0 auto}
+    @page{margin:15mm;size:A4}
+    @media print{body{padding:0}h1{font-size:18px}.no-print{display:none}}
+  </style></head><body>
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:18px;padding-bottom:14px;border-bottom:3px solid #1a1916">
+    <div>
+      <h1 style="font-size:22px;font-weight:800;color:#1a1916">🚛 Ingemaq SRL — Plan de Rutas</h1>
+      <p style="font-size:12px;color:#6b7280;margin-top:3px">Santa Cruz de la Sierra · ${today}</p>
+    </div>
+    <div style="text-align:right;font-size:11px;color:#6b7280">
+      <div>${routes.length} ruta${routes.length!==1?'s':''} · ${routes.reduce((s,r)=>s+r.stopNames.length,0)} paradas</div>
+      <div style="font-size:16px;font-weight:700;color:#1d4ed8;margin-top:4px">⏰ ${fT(gTravel+gDel)} total</div>
+    </div>
+  </div>
+  ${mapImg?`<div style="margin-bottom:20px;border-radius:8px;overflow:hidden;border:1px solid #e5e7eb"><img src="${mapImg}" style="width:100%;display:block;max-height:280px;object-fit:cover"></div>`:''}
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px;margin-bottom:20px">
+    <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:10px"><div style="font-size:10px;color:#0369a1;font-weight:600">DISTANCIA TOTAL</div><div style="font-size:18px;font-weight:800;color:#0c4a6e">${fD(gDist)}</div></div>
+    <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:10px"><div style="font-size:10px;color:#166534;font-weight:600">TIEMPO DE VIAJE</div><div style="font-size:18px;font-weight:800;color:#14532d">${fT(gTravel)}</div></div>
+    <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:10px"><div style="font-size:10px;color:#c2410c;font-weight:600">TIEMPO ENTREGAS</div><div style="font-size:18px;font-weight:800;color:#9a3412">${fT(gDel)}</div></div>
+    <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:10px"><div style="font-size:10px;color:#1d4ed8;font-weight:600">TIEMPO TOTAL</div><div style="font-size:18px;font-weight:800;color:#1e40af">${fT(gTravel+gDel)}</div></div>
+  </div>
+  ${routeBlocks}
+  <div style="margin-top:20px;padding-top:12px;border-top:1px solid #e5e7eb;font-size:10px;color:#9ca3af;text-align:center">Generado por Ingemaq Rutas SCZ · ${new Date().toLocaleString('es-BO')}</div>
+  <div class="no-print" style="margin-top:20px;text-align:center"><button onclick="window.print()" style="background:#1a1916;color:white;border:none;padding:10px 24px;border-radius:8px;font-size:14px;cursor:pointer;font-family:inherit">🖨️ Imprimir / Guardar PDF</button></div>
+  </body></html>`;
+
+  const win=window.open('','_blank');win.document.write(html);win.document.close();
+  setTimeout(()=>win.focus(),500);
+  toast('✅ PDF listo — usá Ctrl+P para guardar');
+}
+
+// ─── TOAST ────────────────────────────────────────────────────────────────────
+let tT;
+function toast(msg){clearTimeout(tT);document.getElementById('toastMsg').textContent=msg;document.getElementById('toast').classList.add('show');tT=setTimeout(()=>document.getElementById('toast').classList.remove('show'),3500)}
+
+// ─── FIREBASE: guarda en tiempo real, compartido con monitor y choferes ──────
+// (la conexión real a Firebase vive en el <script type="module"> de más abajo,
+//  que expone window.fbSet / window.fbGet — esto evita problemas de orden de carga)
+let saveTimer=null;
+let currentFecha=new Date().toISOString().slice(0,10); // YYYY-MM-DD
+
+// Simplifica geometría a máx N puntos para no exceder límites razonables
+function simplifyGeom(pts,maxPts=80){
+  if(!pts||pts.length<=maxPts)return pts;
+  const step=Math.ceil(pts.length/maxPts);
+  const out=[];
+  for(let i=0;i<pts.length;i+=step)out.push(pts[i]);
+  if(out[out.length-1]!==pts[pts.length-1])out.push(pts[pts.length-1]);
+  return out;
+}
+
+function markDirty(){
+  document.getElementById('saveDot').classList.add('dirty');
+  document.getElementById('saveLabel').textContent='Guardando…';
+  clearTimeout(saveTimer);
+  saveTimer=setTimeout(saveToStorage,800);
+}
+
+async function saveToStorage(){
+  try{
+    // Puntos: biblioteca global, compartida entre todas las fechas
+    await window.fbSet('op_puntos',rows.map(r=>({id:r.id,name:r.name,addr:r.addr,cat:r.cat,color:r.color,lat:r.lat,lng:r.lng})));
+
+    // Rutas: específicas de la fecha seleccionada
+    const routesOut={};
+    routes.forEach(r=>{
+      routesOut['r'+r.id]={
+        id:r.id,name:r.name,color:r.color,driver:r.driver||'',phone:r.phone||'',choferId:r.choferId||'',depTime:r.depTime,
+        stopIds:r.stopIds,stopNames:r.stopNames,delMins:r.delMins,stopTimes:r.stopTimes,
+        segments:(r.segments||[]).map(s=>({
+          fromName:s.fromName,toName:s.toName,
+          dist:s.dist,dur:s.dur,delMin:s.delMin,
+          geom:simplifyGeom(s.geom,80)
+        })),
+        tDist:r.tDist,tTravel:r.tTravel,tDel:r.tDel,fromOSRM:r.fromOSRM
+      };
+    });
+    await window.fbSet('op_rutas/'+currentFecha,{routes:routesOut,nextRId,savedAt:new Date().toISOString()});
+
+    document.getElementById('saveDot').classList.remove('dirty');
+    document.getElementById('saveLabel').textContent='Guardado ✓ en línea';
+  }catch(e){
+    document.getElementById('saveLabel').textContent='❌ Error al guardar — revisá tu conexión';
+    console.error('Save failed',e);
+  }
+}
+
+// Carga la biblioteca global de puntos (se llama una sola vez al iniciar)
+async function loadPuntos(){
+  try{
+    const data=await window.fbGet('op_puntos');
+    if(!data)return false;
+    const list=Array.isArray(data)?data.filter(Boolean):Object.values(data);
+    list.forEach(r=>addRow(r.name,r.addr,r.cat,r.color,r.lat,r.lng,r.id));
+    return list.length>0;
+  }catch(e){
+    console.warn('Load puntos failed:',e);
+    document.getElementById('saveLabel').textContent='Error al cargar puntos';
+    return false;
+  }
+}
+
+// Carga las rutas de una fecha específica (se llama al iniciar y al cambiar de fecha)
+async function loadRutasFecha(fecha){
+  try{
+    document.getElementById('saveLabel').textContent='Cargando rutas…';
+    const data=await window.fbGet('op_rutas/'+fecha);
+    if(!data){
+      nextRId=1;
+      document.getElementById('saveLabel').textContent='Sin rutas para esta fecha';
+      renderRouteList();
+      return false;
+    }
+    nextRId=data.nextRId||1;
+    const routesToLoad=Object.values(data.routes||{});
+    routesToLoad.forEach(r=>restoreRoute(r));
+    const when=data.savedAt?new Date(data.savedAt).toLocaleString('es-BO',{dateStyle:'short',timeStyle:'short'}):'';
+    document.getElementById('saveLabel').textContent=`Guardado ${when}`;
+    renderRouteList();
+    return routesToLoad.length>0;
+  }catch(e){
+    console.warn('Load rutas failed:',e);
+    document.getElementById('saveLabel').textContent='Error al cargar rutas';
+    return false;
+  }
+}
+
+// Cambia el día que se está planificando: limpia el mapa de rutas y carga el nuevo día
+async function cambiarFecha(nuevaFecha){
+  if(!nuevaFecha||nuevaFecha===currentFecha)return;
+  routes.forEach(r=>routeLayers[r.id]&&routeLayers[r.id].forEach(l=>map.removeLayer(l)));
+  routes=[];routeLayers={};editingId=null;
+  document.getElementById('editingBadge').classList.remove('visible');
+  currentFecha=nuevaFecha;
+  await loadRutasFecha(currentFecha);
+  toast(`📅 Mostrando rutas del ${new Date(currentFecha+'T00:00:00').toLocaleDateString('es-BO')}`);
+}
+
+function restoreRoute(r){
+  if(!r||!r.id)return;
+  const layers=[];
+  const pts=(r.stopIds||[]).map(id=>rows.find(row=>row.id===id)).filter(Boolean);
+  const allFullPts=[];
+
+  // Reconstruir polylines desde geometría guardada
+  (r.segments||[]).forEach((seg,i)=>{
+    // Si hay geometría guardada usarla, sino línea recta entre paradas
+    let gc=seg.geom;
+    if(!gc||gc.length<2){
+      const pA=pts[i],pB=pts[i+1];
+      if(pA&&pB)gc=[[pA.lat,pA.lng],[pB.lat,pB.lng]];
+      else return;
+    }
+    // Acumular para la polyline de fondo
+    if(i===0)allFullPts.push(...gc);
+    else allFullPts.push(...gc.slice(1));
+    // Tramo coloreado
+    layers.push(L.polyline(gc,{color:r.color,weight:4,opacity:0.9,
+      dashArray:r.fromOSRM?undefined:'7 4'}).addTo(map));
+    // Etiqueta de distancia/tiempo en el punto medio
+    const mp=gc[Math.floor(gc.length/2)];
+    if(mp&&seg.dist&&seg.dur){
+      layers.push(L.marker(mp,{
+        icon:mkSegLbl(fD(seg.dist),fT(seg.dur),r.color),interactive:false
+      }).addTo(map));
+    }
+  });
+
+  // Polyline de fondo semitransparente
+  if(allFullPts.length>1){
+    layers.push(L.polyline(allFullPts,{color:r.color,weight:13,opacity:0.12}).addTo(map));
+  }
+
+  // Marcadores de parada
+  pts.forEach((p,i)=>{
+    if(!p)return;
+    const lbl=i===0?'▶':i===pts.length-1?'■':(i+1);
+    const dMin=(r.delMins||[])[i]||0;
+    const st=(r.stopTimes||[])[i];
+    const timeInfo=st
+      ?`<div class="pop-seg">
+          <div class="pop-row"><span>🕐 Llegada</span><span>${st.arrive}</span></div>
+          ${dMin?`<div class="pop-row"><span>📦 Entrega</span><span>${dMin} min</span></div>
+          <div class="pop-row"><span>🚀 Salida</span><span>${st.depart}</span></div>`:''}
+        </div>`:'';
+    layers.push(
+      L.marker([p.lat,p.lng],{icon:mkStop(r.color,lbl,26)}).addTo(map)
+       .bindPopup(`<div class="pop-name" style="color:${r.color}">${r.name} · Parada ${i+1}</div>
+                   <div class="pop-addr">${p.name}</div>${p.addr?`<div class="pop-addr">${p.addr}</div>`:''}
+                   ${timeInfo}<div class="pop-meta">${p.lat.toFixed(5)}, ${p.lng.toFixed(5)}</div>`,
+                  {maxWidth:260})
+    );
+  });
+
+  // Solo registrar si tiene capas válidas
+  if(layers.length>0){
+    routes.push(r);
+    routeLayers[r.id]=layers;
+  }
+}
+
+// ─── HOOK saveToStorage into all mutations ────────────────────────────────────
+// Wrap addRow to support restoring with a fixed ID
+const _origAddRow=addRow;
+function addRow(name,addr,cat,color,lat,lng,fixedId){
+  if(!name.trim()){toast('⚠️ El nombre es obligatorio');return false}
+  if(!lat||!lng){toast('⚠️ Ingresá coordenadas válidas');return false}
+  const id=fixedId||nextId++;
+  if(fixedId&&fixedId>=nextId)nextId=fixedId+1;
+  const row={id,name:name.trim(),addr:(addr||'').trim(),cat,color,lat:+lat,lng:+lng};
+  rows.push(row);
+  const c=CAT[cat]||CAT[''];
+  const m=L.marker([row.lat,row.lng],{icon:mkIcon(color,id)}).addTo(map)
+    .bindPopup(`<div class="pop-name" style="color:${color}">${row.name}</div>${row.addr?`<div class="pop-addr">${row.addr}</div>`:''}${cat?`<div class="pop-addr">${c.l}</div>`:''}<div class="pop-meta">${row.lat.toFixed(5)}, ${row.lng.toFixed(5)}</div>`);
+  m.on('click',()=>selRow(id));
+  markers[id]=m; renderTable(); refreshSelects(); return true;
+}
+
+// ─── INIT ─────────────────────────────────────────────────────────────────────
+// Espera a que el puente de Firebase (script type="module" de más abajo) esté listo
+document.getElementById('planDate').value=currentFecha;
+async function initApp(){
+  const hadPuntos=await loadPuntos();
+  if(!hadPuntos){
+    // Primera vez: cargar puntos por defecto de Ingemaq
+    [
+      {name:"Ingemaq Srl Banzer",          addr:"Av. Marcelo Terceros Bánzer",           cat:"oficina",color:"#2563eb",lat:-17.7318,lng:-63.1880},
+      {name:"Ingemaq Srl Santos Dumont",   addr:"Ave Sexto Anillo 6650",                 cat:"oficina",color:"#ef4444",lat:-17.7410,lng:-63.1590},
+      {name:"INGEMAQ & FRICCION SRL",      addr:"7V48+FX2, Unnamed Road",                cat:"cliente",color:"#16a34a",lat:-17.7830,lng:-63.1760},
+      {name:"Ingemaq Srl Virgen de Cotoca",addr:"Av. Virgen de Cotoca, 4to-5to anillo",  cat:"cliente",color:"#f97316",lat:-17.7820,lng:-63.1460},
+      {name:"Ingemaq Srl El Trompillo",    addr:"Av. El Trompillo 1079",                 cat:"cliente",color:"#8b5cf6",lat:-17.7970,lng:-63.1950},
+      {name:"Ingemaq Srl central",         addr:"Unnamed Road 226",                      cat:"cliente",color:"#f59e0b",lat:-17.7900,lng:-63.1820},
+      {name:"Ingemaq Srl Grigotá",         addr:"Av. Grigotá",                           cat:"cliente",color:"#ec4899",lat:-17.8100,lng:-63.2050},
+    ].forEach(s=>addRow(s.name,s.addr,s.cat,s.color,s.lat,s.lng));
+    fitAll();
+    saveToStorage();
+  }else{
+    fitAll();
+  }
+  await loadRutasFecha(currentFecha);
+  addStopRow();addStopRow();
+}
+if(window.fbReady){initApp();}
+else window.addEventListener('firebase-ready',initApp,{once:true});
+</script>
+
+<!-- Puente de Firebase: módulo ES6 separado para no romper los onclick="" del script clásico de arriba -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getDatabase, ref, set, get } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+const FIREBASE_CONFIG={apiKey:"AIzaSyCGTk3_Ox56EdkC1g-lYaPUhKxGiCLXiX4",databaseURL:"https://rastreo-chofer-70dac-default-rtdb.firebaseio.com"};
+const fbApp=initializeApp(FIREBASE_CONFIG,'planificador');
+const db=getDatabase(fbApp);
+window.fbSet=(path,val)=>set(ref(db,path),val);
+window.fbGet=async(path)=>{const s=await get(ref(db,path));return s.val();};
+window.fbReady=true;
+window.dispatchEvent(new CustomEvent('firebase-ready'));
+</script>
+</body>
+</html>
