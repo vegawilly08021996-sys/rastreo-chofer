@@ -233,8 +233,27 @@ else{document.getElementById('loginError').style.display='block';document.getEle
 if(sessionStorage.getItem('monitor_auth')==='1'){document.getElementById('loginScreen').style.display='none';if(Notification.permission==='default')Notification.requestPermission();}
 // PWA install
 let deferredPromptMonitor=null;
-window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredPromptMonitor=e;document.getElementById('btnInstalarMonitor').style.display='inline-block';});
-window.instalarMonitor=async function(){if(deferredPromptMonitor){deferredPromptMonitor.prompt();const r=await deferredPromptMonitor.userChoice;if(r.outcome==='accepted')document.getElementById('btnInstalarMonitor').style.display='none';}};
+const esIOS=/iPad|iPhone|iPod/.test(navigator.userAgent)&&!window.MSStream;
+const esAndroid=/Android/.test(navigator.userAgent);
+const yaInstalada=window.matchMedia('(display-mode: standalone)').matches||window.navigator.standalone===true;
+if(!yaInstalada){document.getElementById('btnInstalarMonitor').style.display='inline-block';}
+window.addEventListener('beforeinstallprompt',e=>{
+  e.preventDefault();deferredPromptMonitor=e;
+  document.getElementById('btnInstalarMonitor').style.display='inline-block';
+});
+window.instalarMonitor=async function(){
+  if(deferredPromptMonitor){
+    deferredPromptMonitor.prompt();
+    const r=await deferredPromptMonitor.userChoice;
+    if(r.outcome==='accepted'){document.getElementById('btnInstalarMonitor').style.display='none';}
+    return;
+  }
+  if(esIOS){
+    alert('Para instalar en iPhone/iPad:\n\n1. Tocá el ícono 📤 Compartir (barra inferior de Safari)\n2. Elegí "Añadir a pantalla de inicio"\n3. Tocá "Añadir"');
+  } else {
+    alert('Para instalar en Android:\n\n1. Tocá el menú ⋮ (tres puntos) de Chrome\n2. Elegí "Añadir a pantalla de inicio"\n3. Tocá "Añadir"');
+  }
+};
 if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
 // Visor de foto
 let fotoModalSrc='';
