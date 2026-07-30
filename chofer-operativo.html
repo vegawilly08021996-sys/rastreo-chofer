@@ -97,13 +97,11 @@ button:hover { opacity: 0.88; }
 <div class="select-box">
 <label>¿Quién eres?</label>
 <select id="choferId" onchange="actualizarBadge();if(window.cargarRutasHoy)cargarRutasHoy();">
-<option value="chofer1">Chofer 1</option>
-<option value="chofer2">Chofer 2</option>
-<option value="chofer3">Chofer 3</option>
-<option value="chofer4">Chofer 4</option>
+<option value="chofer1">Henry</option>
+<option value="chofer2">Willy</option>
+<option value="chofer3">Victor</option>
+<option value="chofer4">Javier</option>
 </select>
-<label>Tu nombre (opcional)</label>
-<input id="nombreChofer" placeholder="Ej: Juan Pérez" />
 </div>
 <div id="badge" class="badge" style="background:#dbeafe;color:#1d4ed8;">Chofer 1</div>
 
@@ -182,10 +180,10 @@ disable(){if(this._wakeLock){this._wakeLock.release();this._wakeLock=null;}this.
 }
 const noSleep=new NoSleep();
 const badges=[
-{bg:'#dbeafe',color:'#1d4ed8',label:'Chofer 1'},
-{bg:'#dcfce7',color:'#15803d',label:'Chofer 2'},
-{bg:'#fef3c7',color:'#b45309',label:'Chofer 3'},
-{bg:'#fce7f3',color:'#be185d',label:'Chofer 4'}
+{bg:'#dbeafe',color:'#1d4ed8',label:'Henry'},
+{bg:'#dcfce7',color:'#15803d',label:'Willy'},
+{bg:'#fef3c7',color:'#b45309',label:'Victor'},
+{bg:'#fce7f3',color:'#be185d',label:'Javier'}
 ];
 window.actualizarBadge=function(){
 const idx=parseInt(document.getElementById('choferId').value.replace('chofer',''))-1;
@@ -294,7 +292,7 @@ const FIREBASE_CONFIG={
 apiKey:"AIzaSyCGTk3_Ox56EdkC1g-lYaPUhKxGiCLXiX4",
 databaseURL:"https://rastreo-chofer-70dac-default-rtdb.firebaseio.com"
 };
-const nombresDefault=['Chofer 1','Chofer 2','Chofer 3','Chofer 4'];
+const nombresDefault=['Henry','Willy','Victor','Javier'];
 let watchId=null,locationRef=null,fallbackInterval=null;
 let choferIdActual='chofer1',nombreActual='Chofer 1';
 let latActual=null,lngActual=null;
@@ -497,9 +495,8 @@ document.getElementById('errorMsg').textContent='Error: '+e.message;
 };
 window.startTracking=async function(){
 choferIdActual=document.getElementById('choferId').value;
-const nombreInput=document.getElementById('nombreChofer').value.trim();
 const idx=parseInt(choferIdActual.replace('chofer',''))-1;
-nombreActual=nombreInput||nombresDefault[idx];
+nombreActual=nombresDefault[idx];
 const errorEl=document.getElementById('errorMsg');
 errorEl.textContent='';
 await noSleep.enable();

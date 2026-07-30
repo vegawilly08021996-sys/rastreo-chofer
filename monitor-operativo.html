@@ -3,6 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Monitor GPS">
+<meta name="theme-color" content="#1e3a5f">
+<link rel="manifest" href="manifest.json">
 <title>Monitor de Choferes</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <style>
@@ -151,6 +156,7 @@ body * { visibility: hidden; }
 <button class="top-btn" onclick="abrirPanel('historial')">📋 Historial</button>
 <button class="top-btn" onclick="abrirPanel('reporte')">📊 Reporte</button>
 <a href="planificador.html" class="top-btn" style="text-decoration:none;display:inline-block;">📝 Planificar</a>
+<button class="top-btn" onclick="instalarMonitor()" id="btnInstalarMonitor" style="display:none;background:#7c3aed;color:#fff;">📲 Instalar</button>
 </div>
 </div>
 <div id="map"></div>
@@ -226,6 +232,11 @@ if(v===CLAVE){document.getElementById('loginScreen').style.display='none';sessio
 else{document.getElementById('loginError').style.display='block';document.getElementById('claveInput').value='';}
 }
 if(sessionStorage.getItem('monitor_auth')==='1'){document.getElementById('loginScreen').style.display='none';if(Notification.permission==='default')Notification.requestPermission();}
+// PWA install
+let deferredPromptMonitor=null;
+window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredPromptMonitor=e;document.getElementById('btnInstalarMonitor').style.display='inline-block';});
+window.instalarMonitor=async function(){if(deferredPromptMonitor){deferredPromptMonitor.prompt();const r=await deferredPromptMonitor.userChoice;if(r.outcome==='accepted')document.getElementById('btnInstalarMonitor').style.display='none';}};
+if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
 // Visor de foto
 let fotoModalSrc='';
 window.verFotoModal=function(src,info){
@@ -295,19 +306,26 @@ window.quitarFiltroFecha=function(){
 filtroDesde='';filtroHasta='';
 renderPanel();
 };
-let audioCtx=null,alarmaInterval=null,silenciado=false,alarmaActiva=false,contadorAlarma=0;
-function getACtx(){if(!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)();return audioCtx;}
-function tono(f,d,t,v=0.5,tp='sine'){const ctx=getACtx(),o=ctx.createOscillator(),g=ctx.createGain();o.connect(g);g.connect(ctx.destination);o.frequency.value=f;o.type=tp;g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(v,t+0.02);g.gain.setValueAtTime(v,t+d-0.02);g.gain.linearRampToValueAtTime(0,t+d);o.start(t);o.stop(t+d);}
-const secs=[
-()=>{const ctx=getACtx(),t=ctx.currentTime;for(let i=0;i<3;i++){tono(440+i*200,0.3,t+i*0.35,0.6,'sawtooth');tono(800-i*100,0.3,t+i*0.35+0.15,0.5,'square');}},
-()=>{const ctx=getACtx(),t=ctx.currentTime;for(let i=0;i<5;i++)tono(1000,0.1,t+i*0.2,0.7,'square');tono(1400,0.4,t+1.1,0.8,'sine');},
-()=>{const ctx=getACtx(),t=ctx.currentTime;tono(1200,0.4,t,0.7,'sine');tono(900,0.4,t+0.45,0.7,'sine');tono(600,0.6,t+0.9,0.8,'sine');},
-()=>{const ctx=getACtx(),t=ctx.currentTime;for(let i=0;i<4;i++){tono(880,0.2,t+i*0.25,0.6,'sawtooth');tono(1100,0.15,t+i*0.25+0.1,0.5,'square');}tono(1300,0.5,t+1.1,0.9,'sine');}
-];
-function tocarAlarma(){if(silenciado)return;try{secs[contadorAlarma%secs.length]();contadorAlarma++;}catch(e){}}
-function iniciarAlarma(nombre,mins){if(alarmaActiva&&!silenciado)return;alarmaActiva=true;silenciado=false;document.getElementById('alarmaOverlay').style.display='block';document.getElementById('btnSilenciar').style.display='block';if(Notification.permission==='granted')new Notification('🚨 Chofer detenido',{body:nombre+' lleva '+mins+' min sin moverse',requireInteraction:true});tocarAlarma();alarmaInterval=setInterval(()=>{if(!silenciado)tocarAlarma();},20000);}
-function detenerAlarma(){clearInterval(alarmaInterval);alarmaInterval=null;alarmaActiva=false;document.getElementById('alarmaOverlay').style.display='none';document.getElementById('btnSilenciar').style.display='none';}
-window.silenciarAlarma=function(){silenciado=true;detenerAlarma();showToast('🔇 Silenciada 5 min','toast-warn');setTimeout(()=>{silenciado=false;if(paradoAlertado.some(v=>v)){const i=paradoAlertado.findIndex(v=>v);iniciarAlarma(nombresActuales[i],10);}},300000);};
+// Alarma visual y notificación (sin sonido)
+let alarmaActiva=false,silenciado=false;
+function iniciarAlarma(nombre,mins){
+  if(alarmaActiva&&!silenciado)return;
+  alarmaActiva=true;silenciado=false;
+  document.getElementById('alarmaOverlay').style.display='block';
+  document.getElementById('btnSilenciar').style.display='block';
+  if(Notification.permission==='granted')
+    new Notification('🚨 Chofer detenido',{body:nombre+' lleva '+mins+' min sin moverse',requireInteraction:true});
+}
+function detenerAlarma(){
+  alarmaActiva=false;
+  document.getElementById('alarmaOverlay').style.display='none';
+  document.getElementById('btnSilenciar').style.display='none';
+}
+window.silenciarAlarma=function(){
+  silenciado=true;detenerAlarma();
+  showToast('🔇 Silenciada 5 min','toast-warn');
+  setTimeout(()=>{silenciado=false;},300000);
+};
 function showToast(msg,tipo){const t=document.getElementById('toast');t.textContent=msg;t.className='toast '+tipo;t.style.display='block';setTimeout(()=>{t.style.display='none';},5000);}
 function tiempoActivo(ts){if(!ts)return'--';const s=Math.floor((Date.now()-ts)/1000),h=Math.floor(s/3600),m=Math.floor((s%3600)/60);return(h>0?h+'h ':'')+m+'min';}
 function calcDist(la1,lo1,la2,lo2){const R=6371,dL=(la2-la1)*Math.PI/180,dO=(lo2-lo1)*Math.PI/180,a=Math.sin(dL/2)**2+Math.cos(la1*Math.PI/180)*Math.cos(la2*Math.PI/180)*Math.sin(dO/2)**2;return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));}
