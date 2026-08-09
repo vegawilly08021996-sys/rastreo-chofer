@@ -108,6 +108,17 @@ body { font-family: sans-serif; background: #f0f4f8; overflow: hidden; }
 .rp-date-row{display:flex;gap:6px;align-items:center;margin-bottom:10px;background:#f8fafc;border-radius:8px;padding:8px;}
 .rp-date-row label{font-size:11px;font-weight:600;color:#6b7280;}
 .rp-date-row input[type="date"]{font-size:12px;padding:4px 6px;border:1px solid #d1d5db;border-radius:6px;}
+.se-card{background:#fff7ed;border:1.5px solid #fed7aa;border-radius:10px;padding:10px 12px;margin-bottom:8px;}
+.se-card.ok{background:#f0fdf4;border-color:#bbf7d0;}
+.se-card .se-nombre{font-size:13px;font-weight:700;color:#c2410c;margin-bottom:4px;}
+.se-card.ok .se-nombre{color:#15803d;}
+.se-card .se-detalle{font-size:11px;color:#6b7280;}
+.se-hist-row{display:flex;justify-content:space-between;font-size:11px;padding:3px 0;border-bottom:1px solid #f1f5f9;}
+.se-hist-row .se-fecha{color:#374151;font-weight:600;}
+.se-hist-row .se-estado{color:#c2410c;}
+.se-hist-row .se-estado.ok{color:#15803d;}
+.se-semana{background:#fef2f2;border-radius:8px;padding:8px 10px;margin-bottom:8px;font-size:12px;}
+.se-semana-title{font-weight:700;color:#991b1b;margin-bottom:4px;}
 /* Visor de foto ampliada */
 #fotoModal { position: fixed; inset: 0; background: rgba(0,0,0,0.9); z-index: 9998; display: none; align-items: center; justify-content: center; flex-direction: column; }
 #fotoModal.open { display: flex; }
@@ -155,6 +166,7 @@ body * { visibility: hidden; }
 <button class="top-btn" onclick="abrirPanel('eventos')">📦 Eventos</button>
 <button class="top-btn" onclick="abrirPanel('historial')">📋 Historial</button>
 <button class="top-btn" onclick="abrirPanel('reporte')">📊 Reporte</button>
+<button class="top-btn" onclick="abrirPanel('sinevento')" id="btnSinEvento" style="background:#dc2626;color:#fff;display:none;">⚠️ Sin Eventos</button>
 <a href="planificador.html" class="top-btn" style="text-decoration:none;display:inline-block;">📝 Planificar</a>
 <button class="top-btn" onclick="instalarMonitor()" id="btnInstalarMonitor" style="display:none;background:#7c3aed;color:#fff;">📲 Instalar</button>
 </div>
@@ -373,7 +385,7 @@ if(!markers[idx]){markers[idx]=L.marker(latlng,{icon:makeIcon(colores[idx],i)}).
 historiales[idx].push(latlng);if(historiales[idx].length>500)historiales[idx].shift();
 if(polylines[idx])polylines[idx].remove();
 polylines[idx]=L.polyline(historiales[idx],{color:colores[idx],weight:3,opacity:0.5}).addTo(map);
-if(activo&&!wasActive[idx]){startTimes[idx]=data.timestamp;historialData[idx].push({fecha:fechaHoy(),inicio:new Date(data.timestamp).toLocaleTimeString('es-BO'),inicioTs:data.timestamp,fin:null,finTs:null,distKm:0,nombre,ruta:[]});}
+if(activo&&!wasActive[idx]){startTimes[idx]=data.timestamp;activoHoy[idx]=true;historialData[idx].push({fecha:fechaHoy(),inicio:new Date(data.timestamp).toLocaleTimeString('es-BO'),inicioTs:data.timestamp,fin:null,finTs:null,distKm:0,nombre,ruta:[]});}
 if(!activo&&wasActive[idx]){showToast('🔴 '+nombre+' se desconectó','toast-danger');const ses=historialData[idx][historialData[idx].length-1];if(ses&&!ses.fin){ses.fin=new Date().toLocaleTimeString('es-BO');ses.finTs=Date.now();ses.distKm=parseFloat(totalDistancias[idx].toFixed(2));ses.ruta=[...historiales[idx]];try{push(ref(db,'op_historial/chofer'+(idx+1)),ses);}catch(e){}}startTimes[idx]=null;}
 wasActive[idx]=activo;
 if(historialData[idx].length>0){const ses=historialData[idx][historialData[idx].length-1];if(ses&&!ses.fin){ses.distKm=parseFloat(totalDistancias[idx].toFixed(2));ses.ruta=[...historiales[idx]];}}
@@ -387,6 +399,9 @@ onValue(ref(db,'op_eventos/chofer'+i),snap=>{
 const data=snap.val();if(!data)return;
 const items=Object.values(data).sort((a,b)=>b.timestamp-a.timestamp);
 eventosData[idx]=items;
+// Contar eventos de hoy para el control de eventos
+const hoyStr=new Date().toLocaleDateString('es-BO',{day:'2-digit',month:'2-digit',year:'numeric'});
+eventosHoy[idx]=items.filter(e=>e.fecha===hoyStr).length;
 const ultimo=items[0];
 if(ultimo&&(Date.now()-ultimo.timestamp)<10000){const icons={'llegada':'📍','entrega':'✅','problema':'⚠️','salida':'🚪'};const tipos={'llegada':'toast-info','entrega':'toast-success','problema':'toast-warn','salida':'toast-info'};const nombresTipo={'llegada':'Llegada','entrega':'Entrega confirmada','problema':'Problema','salida':'Salida marcada'};showToast((icons[ultimo.tipo]||'')+' '+nombresActuales[idx]+': '+(nombresTipo[ultimo.tipo]||ultimo.tipo)+(ultimo.tieneFoto?' 📷':'')+(ultimo.nota?' — '+ultimo.nota:''),tipos[ultimo.tipo]||'toast-info');}
 if(panelActual==='eventos'&&tabActiva===idx)renderPanel();
@@ -403,7 +418,172 @@ historialData[idx]=[...items,...historialData[idx].filter(it=>!it.fin)];
 if((panelActual==='historial'||panelActual==='reporte')&&tabActiva===idx)renderPanel();
 });
 }
-window.abrirPanel=function(tipo){panelActual=tipo;const titles={'eventos':'📦 Eventos y entregas','historial':'📋 Historial','reporte':'📊 Reporte','rutasplan':'🗺️ Rutas del día'};document.getElementById('spTitle').textContent=titles[tipo]||tipo;document.getElementById('stab5').style.display=(tipo==='reporte'||tipo==='rutasplan')?'block':'none';document.getElementById('sidePanel').classList.add('open');renderPanel();};
+window.abrirPanel=function(tipo){panelActual=tipo;const titles={'eventos':'📦 Eventos y entregas','historial':'📋 Historial','reporte':'📊 Reporte','rutasplan':'🗺️ Rutas del día','sinevento':'⚠️ Sin Eventos'};document.getElementById('spTitle').textContent=titles[tipo]||tipo;document.getElementById('stab5').style.display=(tipo==='reporte'||tipo==='rutasplan')?'block':'none';document.getElementById('sidePanel').classList.add('open');renderPanel();};
+
+// ─── SISTEMA DE CONTROL DE EVENTOS ───────────────────────────────────────────
+// Tracks whether each chofer was active today and if they registered events
+const activoHoy=[false,false,false,false];
+const eventosHoy=[0,0,0,0]; // contador de eventos por chofer hoy
+
+function hoyFecha(){return new Date().toLocaleDateString('es-BO',{day:'2-digit',month:'2-digit',year:'numeric'});}
+function hoyISO(){return new Date().toISOString().slice(0,10);}
+
+// Registra en Firebase los días sin eventos (para historial)
+async function registrarDiaSinEventos(idx){
+  try{
+    const key=hoyISO()+'_chofer'+(idx+1);
+    await set(ref(db,'op_sin_eventos/chofer'+(idx+1)+'/'+hoyISO()),{
+      fecha:hoyFecha(),
+      fechaISO:hoyISO(),
+      nombre:nombresActuales[idx],
+      activoHoy:true,
+      eventosRegistrados:eventosHoy[idx],
+      registradoEn:new Date().toLocaleTimeString('es-BO'),
+      timestamp:Date.now()
+    });
+  }catch(e){console.warn('Error registrando día sin eventos:',e);}
+}
+
+// Revisa si hay choferes activos sin eventos y dispara avisos
+async function verificarEventosPendientes(turno){
+  const sinEventos=[];
+  for(let i=0;i<4;i++){
+    if(activoHoy[i]&&eventosHoy[i]===0){
+      sinEventos.push(nombresActuales[i]);
+      await registrarDiaSinEventos(i);
+    }
+  }
+  if(sinEventos.length===0)return;
+
+  // Notificación push al jefe
+  const turnoLabel=turno==='manana'?'turno mañana (12:00)':'cierre día (18:00)';
+  const msg=sinEventos.join(', ')+' — sin eventos registrados al '+turnoLabel;
+  if(Notification.permission==='granted'){
+    new Notification('⚠️ Choferes sin eventos',{body:msg,requireInteraction:true,icon:'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">⚠️</text></svg>'});
+  }
+
+  // Alerta visual en monitor
+  showToast('⚠️ Sin eventos: '+sinEventos.join(', '),'toast-warn');
+  document.getElementById('btnSinEvento').style.display='inline-block';
+
+  // Abrir panel automáticamente si el monitor está en uso
+  if(document.visibilityState==='visible'){
+    abrirPanel('sinevento');
+  }
+}
+
+// Programar los dos avisos: 12:00 y 18:00
+function programarAvisos(){
+  const ahora=new Date();
+  const avisos=[
+    {h:12,m:0,turno:'manana'},
+    {h:18,m:0,turno:'tarde'}
+  ];
+  avisos.forEach(({h,m,turno})=>{
+    const objetivo=new Date();
+    objetivo.setHours(h,m,0,0);
+    let diff=objetivo-ahora;
+    if(diff<0)diff+=24*60*60*1000; // si ya pasó, programar para mañana
+    setTimeout(()=>{
+      verificarEventosPendientes(turno);
+      // Reprogramar para el día siguiente
+      setInterval(()=>verificarEventosPendientes(turno),24*60*60*1000);
+    },diff);
+  });
+}
+programarAvisos();
+
+// Historial de días sin eventos desde Firebase
+let sinEventosHistorial=[[],[],[],[]]; // por chofer
+for(let i=1;i<=4;i++){
+  const idx=i-1;
+  onValue(ref(db,'op_sin_eventos/chofer'+i),snap=>{
+    const data=snap.val();
+    if(!data){sinEventosHistorial[idx]=[];return;}
+    sinEventosHistorial[idx]=Object.values(data).sort((a,b)=>b.timestamp-a.timestamp);
+  });
+}
+
+function renderSinEventos(){
+  const hoy=hoyISO();
+  let html=`<div style="font-size:12px;color:#6b7280;margin-bottom:12px;background:#fff7ed;border-radius:8px;padding:10px;border-left:3px solid #f97316;">
+    ⚠️ Se registra automáticamente cuando un chofer tuvo GPS activo pero <strong>no marcó ningún evento</strong> al cierre del turno (12:00 y 18:00).
+  </div>`;
+
+  // Estado de hoy
+  html+=`<div class="section-title">📅 Hoy — ${hoyFecha()}</div>`;
+  for(let i=0;i<4;i++){
+    const tieneProblema=activoHoy[i]&&eventosHoy[i]===0;
+    const noSalio=!activoHoy[i];
+    html+=`<div class="se-card ${tieneProblema?'':'ok'}">
+      <div class="se-nombre">${tieneProblema?'⚠️':'✅'} ${nombresActuales[i]}</div>
+      <div class="se-detalle">
+        ${noSalio?'No activó GPS hoy':
+          tieneProblema?'GPS activo — 0 eventos registrados':
+          `GPS activo — ${eventosHoy[i]} evento${eventosHoy[i]!==1?'s':''} registrado${eventosHoy[i]!==1?'s':''}`}
+      </div>
+    </div>`;
+  }
+
+  // Historial por chofer
+  html+=`<div class="section-title" style="margin-top:14px;">📋 Historial de días sin eventos</div>`;
+  for(let i=0;i<4;i++){
+    const hist=sinEventosHistorial[i];
+    if(!hist||hist.length===0){
+      html+=`<div class="se-card ok" style="margin-bottom:6px;">
+        <div class="se-nombre">✅ ${nombresActuales[i]}</div>
+        <div class="se-detalle">Sin incidencias registradas</div>
+      </div>`;
+      continue;
+    }
+    html+=`<div class="se-semana">
+      <div class="se-semana-title">⚠️ ${nombresActuales[i]} — ${hist.length} día${hist.length!==1?'s':''} sin eventos</div>`;
+    hist.slice(0,10).forEach(d=>{
+      html+=`<div class="se-hist-row">
+        <span class="se-fecha">${d.fecha}</span>
+        <span class="se-estado">GPS activo · 0 eventos · avisos a las ${d.registradoEn}</span>
+      </div>`;
+    });
+    if(hist.length>10)html+=`<div style="font-size:10px;color:#9ca3af;margin-top:4px;">... y ${hist.length-10} días más</div>`;
+    html+=`</div>`;
+  }
+
+  // Botón exportar
+  html+=`<div class="export-bar" style="margin-top:10px;">
+    <button class="btn-exp btn-excel" onclick="exportarSinEventos()">📊 Exportar Excel</button>
+    <button class="btn-exp btn-pdf" onclick="imprimirSinEventos()">🖨️ Imprimir</button>
+  </div>`;
+  return html;
+}
+
+window.exportarSinEventos=function(){
+  let csv='Chofer,Fecha,GPS Activo,Eventos Registrados,Hora de Aviso\n';
+  for(let i=0;i<4;i++){
+    (sinEventosHistorial[i]||[]).forEach(d=>{
+      csv+=`${d.nombre},${d.fecha},Sí,${d.eventosRegistrados||0},${d.registradoEn}\n`;
+    });
+  }
+  const blob=new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8;'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');a.href=url;
+  a.download='sin_eventos_'+hoyISO()+'.csv';a.click();
+  URL.revokeObjectURL(url);
+  showToast('📊 Excel descargado','toast-success');
+};
+
+window.imprimirSinEventos=function(){
+  let html=`<html><head><style>body{font-family:sans-serif;padding:20px}h1{font-size:16px;color:#991b1b}table{width:100%;border-collapse:collapse;font-size:12px}th{background:#991b1b;color:#fff;padding:6px 8px;text-align:left}td{padding:5px 8px;border-bottom:1px solid #f1f5f9}tr:nth-child(even){background:#fff7ed}</style></head><body>
+  <h1>⚠️ Registro de días sin eventos — Ingemaq</h1>
+  <p style="font-size:12px;color:#6b7280;">Generado: ${new Date().toLocaleString('es-BO')}</p>
+  <table><tr><th>Chofer</th><th>Fecha</th><th>Eventos registrados</th><th>Hora de aviso</th></tr>`;
+  for(let i=0;i<4;i++){
+    (sinEventosHistorial[i]||[]).forEach(d=>{
+      html+=`<tr><td>${d.nombre}</td><td>${d.fecha}</td><td>${d.eventosRegistrados||0}</td><td>${d.registradoEn}</td></tr>`;
+    });
+  }
+  html+=`</table></body></html>`;
+  const win=window.open('','_blank');win.document.write(html);win.document.close();
+};
 window.cerrarPanel=function(){document.getElementById('sidePanel').classList.remove('open');histPolylines.forEach(p=>p.remove());histPolylines.length=0;};
 window.verTab=function(idx){tabActiva=idx;document.querySelectorAll('.sp-tab').forEach((t,i)=>t.className='sp-tab'+(i===idx?' active':''));renderPanel();};
 function renderPanel(){
@@ -413,6 +593,7 @@ if(panelActual==='eventos')body.innerHTML=renderEventos(tabActiva);
 else if(panelActual==='historial')body.innerHTML=renderHistorial(tabActiva);
 else if(panelActual==='reporte')body.innerHTML=renderReporte(tabActiva);
 else if(panelActual==='rutasplan')body.innerHTML=renderRutasPlan(tabActiva);
+else if(panelActual==='sinevento')body.innerHTML=renderSinEventos();
 }
 let rutasPlanFecha=new Date().toISOString().slice(0,10);
 let rutasPlanCache={};

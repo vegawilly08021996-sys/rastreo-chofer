@@ -35,6 +35,11 @@ button:hover { opacity: 0.88; }
 .update-time { font-size: 12px; color: #999; margin-top: 6px; }
 .badge { display: inline-block; padding: 5px 16px; border-radius: 20px; font-size: 14px; font-weight: 600; margin-bottom: 12px; }
 .timer-box { background: #eff6ff; border-radius: 8px; padding: 8px 12px; margin-top: 8px; font-size: 13px; color: #1d4ed8; font-weight: 500; display: none; }
+.recordatorio-box { background: #fff7ed; border: 2px solid #f97316; border-radius: 12px; padding: 14px; margin: 10px 0; display: none; animation: parpadeoRec 1.5s infinite; }
+@keyframes parpadeoRec { 0%,100%{border-color:#f97316} 50%{border-color:#dc2626} }
+.recordatorio-box h3 { font-size: 14px; font-weight: 700; color: #c2410c; margin-bottom: 6px; }
+.recordatorio-box p { font-size: 12px; color: #374151; margin-bottom: 8px; }
+.recordatorio-box button { background: #f97316; color: #fff; border: none; border-radius: 8px; padding: 8px 14px; font-size: 13px; font-weight: 700; cursor: pointer; width: 100%; }
 .back-link { display: block; font-size: 13px; color: #2563eb; text-decoration: none; margin-bottom: 1rem; }
 .screen-status { font-size: 11px; padding: 6px 10px; border-radius: 6px; margin-top: 6px; text-align: center; }
 .screen-on { background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; }
@@ -134,6 +139,11 @@ button:hover { opacity: 0.88; }
 <button id="btnStop" onclick="stopTracking()">Detener seguimiento</button>
 <div class="error" id="errorMsg"></div>
 <p class="update-time" id="lastUpdate"></p>
+<div class="recordatorio-box" id="recordatorioBox">
+  <h3>⚠️ Recordatorio de eventos</h3>
+  <p>Llevas tiempo con el GPS activo sin registrar ningún evento.<br>Por favor marcá tu actividad: llegadas, entregas o problemas.</p>
+  <button onclick="document.getElementById('recordatorioBox').style.display='none';document.getElementById('entregaBox').style.display='block';">📍 Registrar evento ahora</button>
+</div>
 <div class="entrega-box" id="entregaBox">
 <h3>📦 Marcar evento</h3>
 <textarea id="notaEntrega" placeholder="Nota opcional (ej: entrega en portería, cliente ausente...)"></textarea>
@@ -196,6 +206,30 @@ window.instalarApp=async function(){if(deferredPrompt){deferredPrompt.prompt();c
 let timerInterval=null,startTime=null;
 function iniciarTimer(){startTime=Date.now();document.getElementById('timerBox').style.display='block';timerInterval=setInterval(()=>{const e=Math.floor((Date.now()-startTime)/1000),h=String(Math.floor(e/3600)).padStart(2,'0'),m=String(Math.floor((e%3600)/60)).padStart(2,'0'),s=String(e%60).padStart(2,'0');document.getElementById('timerText').textContent=h+':'+m+':'+s;},1000);}
 function detenerTimer(){clearInterval(timerInterval);document.getElementById('timerBox').style.display='none';}
+
+// Recordatorio al chofer si tiene GPS activo pero sin eventos al cierre de turno
+let eventosRegistradosHoy=0;
+function verificarRecordatorioChofer(turno){
+  // Solo aplica si el seguimiento está activo
+  if(document.getElementById('btnStop').style.display==='none')return;
+  if(eventosRegistradosHoy===0){
+    document.getElementById('recordatorioBox').style.display='block';
+    // Notificación push si el celular lo permite
+    if(Notification.permission==='granted'){
+      const turnoLabel=turno==='manana'?'turno de la mañana':'cierre del día';
+      new Notification('⚠️ Registrá tus eventos',{body:'No registraste actividad en el '+turnoLabel+'. Tocá para registrar.',requireInteraction:true});
+    }
+  }
+}
+function programarRecordatoriosChofer(){
+  const ahora=new Date();
+  [{h:12,m:0,turno:'manana'},{h:18,m:0,turno:'tarde'}].forEach(({h,m,turno})=>{
+    const obj=new Date();obj.setHours(h,m,0,0);
+    let diff=obj-ahora;if(diff<0)diff+=24*60*60*1000;
+    setTimeout(()=>{verificarRecordatorioChofer(turno);},diff);
+  });
+}
+programarRecordatoriosChofer();
 document.addEventListener('visibilitychange',()=>{
 const ss=document.getElementById('screenStatus');
 if(document.hidden){ss.className='screen-status screen-off';ss.textContent='⚠️ Pantalla apagada';}
@@ -469,6 +503,8 @@ if(window.fotoBase64){
 document.getElementById('uploadBar').style.width='80%';
 }
 await push(ref(db,'op_eventos/'+choferIdActual), evento);
+eventosRegistradosHoy++;
+document.getElementById('recordatorioBox').style.display='none';
 await set(ref(db,'op_choferes/'+choferIdActual+'/ultimoEvento'),{
 tipo, hora, nota:nota||'', timestamp:Date.now(), tieneFoto:!!window.fotoBase64
 });
