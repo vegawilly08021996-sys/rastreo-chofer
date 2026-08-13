@@ -144,6 +144,14 @@ button:hover { opacity: 0.88; }
   <p>Llevas tiempo con el GPS activo sin registrar ningún evento.<br>Por favor marcá tu actividad: llegadas, entregas o problemas.</p>
   <button onclick="document.getElementById('recordatorioBox').style.display='none';document.getElementById('entregaBox').style.display='block';">📍 Registrar evento ahora</button>
 </div>
+
+<!-- Banner para suscribirse a notificaciones ntfy -->
+<div id="ntfyBanner" style="background:#eff6ff;border:1.5px solid #93c5fd;border-radius:12px;padding:12px;margin:10px 0;display:none;text-align:left;">
+  <div style="font-size:13px;font-weight:700;color:#1d4ed8;margin-bottom:6px;">📲 Activar notificaciones cuando la app esté cerrada</div>
+  <div style="font-size:11px;color:#374151;margin-bottom:8px;">Para recibir avisos de tu jefe aunque tengas el celular bloqueado, suscribite a tu canal personal:</div>
+  <div id="ntfyLink" style="font-size:12px;margin-bottom:8px;"></div>
+  <button onclick="document.getElementById('ntfyBanner').style.display='none';localStorage.setItem('ntfy_ok','1');" style="background:#6b7280;color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:11px;font-weight:600;cursor:pointer;">Ya me suscribí ✓</button>
+</div>
 <div class="entrega-box" id="entregaBox">
 <h3>📦 Marcar evento</h3>
 <textarea id="notaEntrega" placeholder="Nota opcional (ej: entrega en portería, cliente ausente...)"></textarea>
@@ -195,10 +203,24 @@ const badges=[
 {bg:'#fef3c7',color:'#b45309',label:'Victor'},
 {bg:'#fce7f3',color:'#be185d',label:'Javier'}
 ];
+const NTFY_TOPICS_CHOFER={
+  'chofer1':'ingemaq-rastreo-henry-8341',
+  'chofer2':'ingemaq-rastreo-willy-8341',
+  'chofer3':'ingemaq-rastreo-victor-8341',
+  'chofer4':'ingemaq-rastreo-javier-8341'
+};
 window.actualizarBadge=function(){
-const idx=parseInt(document.getElementById('choferId').value.replace('chofer',''))-1;
-const b=document.getElementById('badge');
-b.style.background=badges[idx].bg;b.style.color=badges[idx].color;b.textContent=badges[idx].label;
+  const idx=parseInt(document.getElementById('choferId').value.replace('chofer',''))-1;
+  const b=document.getElementById('badge');
+  b.style.background=badges[idx].bg;b.style.color=badges[idx].color;b.textContent=badges[idx].label;
+  // Mostrar banner ntfy si no se suscribió aún
+  const choferId=document.getElementById('choferId').value;
+  const topic=NTFY_TOPICS_CHOFER[choferId];
+  const link=document.getElementById('ntfyLink');
+  link.innerHTML=`Canal: <a href="https://ntfy.sh/${topic}" target="_blank" style="color:#2563eb;font-weight:700;">ntfy.sh/${topic}</a><br><span style="font-size:10px;color:#6b7280;">Abrí el link → tocá "Subscribe" → activá notificaciones</span>`;
+  if(!localStorage.getItem('ntfy_ok')){
+    document.getElementById('ntfyBanner').style.display='block';
+  }
 };
 let deferredPrompt=null;
 window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredPrompt=e;document.getElementById('btnInstall').style.display='block';});

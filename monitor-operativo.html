@@ -547,16 +547,38 @@ function renderSinEventos(){
   return html;
 }
 
-// Notificar a un chofer específico vía Firebase
+// ─── CANALES NTFY POR CHOFER ─────────────────────────────────────────────────
+const NTFY_TOPICS={
+  'chofer1':'ingemaq-op-henry-8341',
+  'chofer2':'ingemaq-op-willy-8341',
+  'chofer3':'ingemaq-op-victor-8341',
+  'chofer4':'ingemaq-op-javier-8341'
+};
+
+// Notificar a un chofer vía Firebase + ntfy.sh
 window.notificarChofer=async function(idx){
+  const choferId='chofer'+(idx+1);
+  const nombre=nombresActuales[idx];
+  const mensaje='⚠️ Por favor registrá tus eventos de hoy en la app.';
+  let exito=false;
   try{
-    await set(ref(db,'op_avisos/chofer'+(idx+1)),{
-      mensaje:'⚠️ Por favor registrá tus eventos de hoy en la app.',
-      timestamp:Date.now(),fecha:hoyFecha()
+    await set(ref(db,'op_avisos/'+choferId),{mensaje,timestamp:Date.now(),fecha:hoyFecha()});
+    exito=true;
+  }catch(e){console.warn('Firebase aviso error:',e);}
+  try{
+    await fetch('https://ntfy.sh/'+NTFY_TOPICS[choferId],{
+      method:'POST',
+      headers:{'Title':'⚠️ Ingemaq — Registrá tus eventos','Priority':'high','Tags':'warning'},
+      body:mensaje
     });
-    showToast('📲 Aviso enviado a '+nombresActuales[idx],'toast-success');
+    exito=true;
+  }catch(e){console.warn('ntfy error:',e);}
+  if(exito){
+    showToast('📲 Aviso enviado a '+nombre,'toast-success');
     if(panelActual==='sinevento')document.getElementById('spBody').innerHTML=renderSinEventos();
-  }catch(e){showToast('Error al enviar aviso','toast-warn');}
+  }else{
+    showToast('Error al enviar aviso a '+nombre,'toast-warn');
+  }
 };
 
 // Notificar a todos los que faltan
