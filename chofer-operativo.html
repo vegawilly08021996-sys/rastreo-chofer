@@ -321,7 +321,7 @@ ${m.fotoUrl?`<img src="${m.fotoUrl}" alt="foto" />`:''}
 </script>
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getDatabase, ref, set, get, push, onDisconnect } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+import { getDatabase, ref, set, get, push, onDisconnect, onValue } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 const FIREBASE_CONFIG={
 apiKey:"AIzaSyCGTk3_Ox56EdkC1g-lYaPUhKxGiCLXiX4",
 databaseURL:"https://rastreo-chofer-70dac-default-rtdb.firebaseio.com"
@@ -579,6 +579,22 @@ detenerTimer();cerrarCamara();
 };
 if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
 cargarRutasHoy();
+
+// Escuchar avisos del monitor en tiempo real
+onValue(ref(db,'op_avisos/'+choferIdActual),snap=>{
+  const aviso=snap.val();
+  if(!aviso||!aviso.timestamp)return;
+  const diffMin=(Date.now()-aviso.timestamp)/60000;
+  if(diffMin>5)return;
+  document.getElementById('recordatorioBox').style.display='block';
+  if(Notification.permission==='granted'){
+    new Notification('⚠️ Registrá tus eventos',{
+      body:aviso.mensaje||'Tu jefe te pide que registres tus eventos de hoy.',
+      requireInteraction:true,
+      icon:'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">⚠️</text></svg>'
+    });
+  }
+});
 </script>
 </body>
 </html>

@@ -31,7 +31,8 @@ body { font-family: sans-serif; background: #f0f4f8; overflow: hidden; }
 .c1b{background:#93c5fd;color:#1e3a5f} .c2b{background:#86efac;color:#14532d} .c3b{background:#fcd34d;color:#78350f} .c4b{background:#f9a8d4;color:#831843}
 .top-btn { background: #fff; color: #1e3a5f; border: none; border-radius: 8px; padding: 4px 10px; font-size: 11px; font-weight: 600; cursor: pointer; margin-left: 2px; }
 #map { height: calc(100vh - 50px); width: 100%; }
-#panel { position: absolute; top: 60px; left: 10px; z-index: 1000; display: flex; flex-direction: column; gap: 7px; width: 215px; }
+#panel { position: absolute; top: 60px; left: 10px; z-index: 1000; display: flex; flex-direction: column; gap: 7px; width: 215px; max-height: calc(100vh - 70px); overflow-y: auto; }
+@media (max-width: 600px) { #panel { top: 90px; max-height: calc(100vh - 100px); width: 175px; } }
 .chofer-card { background: #fff; border-radius: 10px; padding: 9px 11px; box-shadow: 0 1px 6px rgba(0,0,0,0.12); border-left: 4px solid #ccc; opacity: 0.45; transition: opacity 0.3s; cursor: pointer; }
 .chofer-card.on { opacity: 1; }
 .chofer-card.parado { background: #fff7ed; border-left-color: #f97316 !important; animation: parpadeo 0.8s infinite; }
@@ -166,7 +167,7 @@ body * { visibility: hidden; }
 <button class="top-btn" onclick="abrirPanel('eventos')">📦 Eventos</button>
 <button class="top-btn" onclick="abrirPanel('historial')">📋 Historial</button>
 <button class="top-btn" onclick="abrirPanel('reporte')">📊 Reporte</button>
-<button class="top-btn" onclick="abrirPanel('sinevento')" id="btnSinEvento" style="background:#dc2626;color:#fff;display:none;">⚠️ Sin Eventos</button>
+<button class="top-btn" onclick="abrirPanel('sinevento')" id="btnSinEvento" style="background:#dc2626;color:#fff;">⚠️ Sin Eventos</button>
 <a href="planificador.html" class="top-btn" style="text-decoration:none;display:inline-block;">📝 Planificar</a>
 <button class="top-btn" onclick="instalarMonitor()" id="btnInstalarMonitor" style="display:none;background:#7c3aed;color:#fff;">📲 Instalar</button>
 </div>
@@ -505,56 +506,70 @@ for(let i=1;i<=4;i++){
 }
 
 function renderSinEventos(){
-  const hoy=hoyISO();
-  let html=`<div style="font-size:12px;color:#6b7280;margin-bottom:12px;background:#fff7ed;border-radius:8px;padding:10px;border-left:3px solid #f97316;">
-    ⚠️ Se registra automáticamente cuando un chofer tuvo GPS activo pero <strong>no marcó ningún evento</strong> al cierre del turno (12:00 y 18:00).
+  const sinEventosList=[];
+  for(let i=0;i<4;i++){if(activoHoy[i]&&eventosHoy[i]===0)sinEventosList.push(nombresActuales[i]);}
+  let html=`<div style="font-size:12px;color:#6b7280;margin-bottom:10px;background:#fff7ed;border-radius:8px;padding:10px;border-left:3px solid #f97316;">
+    ⚠️ Estado en tiempo real — choferes con GPS activo que aún no registraron eventos hoy.
   </div>`;
-
-  // Estado de hoy
-  html+=`<div class="section-title">📅 Hoy — ${hoyFecha()}</div>`;
+  html+=`<div class="section-title">📡 Estado ahora mismo</div>`;
   for(let i=0;i<4;i++){
     const tieneProblema=activoHoy[i]&&eventosHoy[i]===0;
     const noSalio=!activoHoy[i];
     html+=`<div class="se-card ${tieneProblema?'':'ok'}">
-      <div class="se-nombre">${tieneProblema?'⚠️':'✅'} ${nombresActuales[i]}</div>
-      <div class="se-detalle">
-        ${noSalio?'No activó GPS hoy':
-          tieneProblema?'GPS activo — 0 eventos registrados':
-          `GPS activo — ${eventosHoy[i]} evento${eventosHoy[i]!==1?'s':''} registrado${eventosHoy[i]!==1?'s':''}`}
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div class="se-nombre">${tieneProblema?'⚠️':'✅'} ${nombresActuales[i]}</div>
+        ${tieneProblema?`<button onclick="notificarChofer(${i})" style="background:#f97316;color:#fff;border:none;border-radius:6px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer;">📲 Avisar</button>`:''}
       </div>
+      <div class="se-detalle">${noSalio?'No activó GPS hoy':tieneProblema?'GPS activo — sin eventos registrados':`GPS activo — ${eventosHoy[i]} evento${eventosHoy[i]!==1?'s':''} registrado${eventosHoy[i]!==1?'s':''}`}</div>
     </div>`;
   }
-
-  // Historial por chofer
+  if(sinEventosList.length>0){
+    html+=`<button onclick="notificarTodos()" style="width:100%;background:#dc2626;color:#fff;border:none;border-radius:8px;padding:11px;font-size:13px;font-weight:700;cursor:pointer;margin:8px 0;">📲 Avisar a todos (${sinEventosList.length})</button>`;
+  }
   html+=`<div class="section-title" style="margin-top:14px;">📋 Historial de días sin eventos</div>`;
   for(let i=0;i<4;i++){
     const hist=sinEventosHistorial[i];
     if(!hist||hist.length===0){
-      html+=`<div class="se-card ok" style="margin-bottom:6px;">
-        <div class="se-nombre">✅ ${nombresActuales[i]}</div>
-        <div class="se-detalle">Sin incidencias registradas</div>
-      </div>`;
+      html+=`<div class="se-card ok" style="margin-bottom:6px;"><div class="se-nombre">✅ ${nombresActuales[i]}</div><div class="se-detalle">Sin incidencias registradas</div></div>`;
       continue;
     }
-    html+=`<div class="se-semana">
-      <div class="se-semana-title">⚠️ ${nombresActuales[i]} — ${hist.length} día${hist.length!==1?'s':''} sin eventos</div>`;
+    html+=`<div class="se-semana"><div class="se-semana-title">⚠️ ${nombresActuales[i]} — ${hist.length} día${hist.length!==1?'s':''} sin eventos</div>`;
     hist.slice(0,10).forEach(d=>{
-      html+=`<div class="se-hist-row">
-        <span class="se-fecha">${d.fecha}</span>
-        <span class="se-estado">GPS activo · 0 eventos · avisos a las ${d.registradoEn}</span>
-      </div>`;
+      html+=`<div class="se-hist-row"><span class="se-fecha">${d.fecha}</span><span class="se-estado">GPS activo · 0 eventos · aviso a las ${d.registradoEn}</span></div>`;
     });
     if(hist.length>10)html+=`<div style="font-size:10px;color:#9ca3af;margin-top:4px;">... y ${hist.length-10} días más</div>`;
     html+=`</div>`;
   }
-
-  // Botón exportar
   html+=`<div class="export-bar" style="margin-top:10px;">
     <button class="btn-exp btn-excel" onclick="exportarSinEventos()">📊 Exportar Excel</button>
     <button class="btn-exp btn-pdf" onclick="imprimirSinEventos()">🖨️ Imprimir</button>
   </div>`;
   return html;
 }
+
+// Notificar a un chofer específico vía Firebase
+window.notificarChofer=async function(idx){
+  try{
+    await set(ref(db,'op_avisos/chofer'+(idx+1)),{
+      mensaje:'⚠️ Por favor registrá tus eventos de hoy en la app.',
+      timestamp:Date.now(),fecha:hoyFecha()
+    });
+    showToast('📲 Aviso enviado a '+nombresActuales[idx],'toast-success');
+    if(panelActual==='sinevento')document.getElementById('spBody').innerHTML=renderSinEventos();
+  }catch(e){showToast('Error al enviar aviso','toast-warn');}
+};
+
+// Notificar a todos los que faltan
+window.notificarTodos=async function(){
+  for(let i=0;i<4;i++){
+    if(activoHoy[i]&&eventosHoy[i]===0)await window.notificarChofer(i);
+  }
+};
+
+// Refrescar el panel cada 30 segundos
+setInterval(()=>{
+  if(panelActual==='sinevento')document.getElementById('spBody').innerHTML=renderSinEventos();
+},30000);
 
 window.exportarSinEventos=function(){
   let csv='Chofer,Fecha,GPS Activo,Eventos Registrados,Hora de Aviso\n';
