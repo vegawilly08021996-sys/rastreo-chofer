@@ -534,6 +534,24 @@ nombreActual=nombresDefault[idx];
 const errorEl=document.getElementById('errorMsg');
 errorEl.textContent='';
 await noSleep.enable();
+
+// Suscribirse a avisos del monitor ahora que sabemos quién es el chofer
+onValue(ref(db,'avisos/'+choferIdActual),snap=>{
+  const aviso=snap.val();
+  if(!aviso||!aviso.timestamp)return;
+  // Mostrar si el aviso es de hoy (últimas 8 horas)
+  const diffMin=(Date.now()-aviso.timestamp)/60000;
+  if(diffMin>480)return;
+  document.getElementById('recordatorioBox').style.display='block';
+  if(Notification.permission==='granted'){
+    new Notification('⚠️ Registrá tus eventos',{
+      body:aviso.mensaje||'Tu jefe te pide que registres tus eventos de hoy.',
+      requireInteraction:true,
+      icon:'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">⚠️</text></svg>'
+    });
+  }
+});
+
 try{
 locationRef=ref(db,'choferes/'+choferIdActual);
 onDisconnect(locationRef).update({activo:false});
@@ -577,25 +595,6 @@ detenerTimer();cerrarCamara();
 };
 if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
 cargarRutasHoy();
-
-// Escuchar avisos del monitor en tiempo real
-onValue(ref(db,'avisos/'+choferIdActual),snap=>{
-  const aviso=snap.val();
-  if(!aviso||!aviso.timestamp)return;
-  // Solo mostrar si el aviso es de hoy y reciente (últimos 5 minutos)
-  const diffMin=(Date.now()-aviso.timestamp)/60000;
-  if(diffMin>5)return;
-  // Mostrar banner en pantalla
-  document.getElementById('recordatorioBox').style.display='block';
-  // Notificación push local
-  if(Notification.permission==='granted'){
-    new Notification('⚠️ Registrá tus eventos',{
-      body:aviso.mensaje||'Tu jefe te pide que registres tus eventos de hoy.',
-      requireInteraction:true,
-      icon:'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">⚠️</text></svg>'
-    });
-  }
-});
 </script>
 </body>
 </html>
