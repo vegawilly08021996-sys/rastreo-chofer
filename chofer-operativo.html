@@ -542,14 +542,26 @@ onValue(ref(db,'op_avisos/'+choferIdActual),snap=>{
   const aviso=snap.val();
   if(!aviso||!aviso.timestamp)return;
   const diffMin=(Date.now()-aviso.timestamp)/60000;
-  if(diffMin>480)return; // válido hasta 8 horas
+  if(diffMin>480)return;
+  const claveVisto='op_aviso_visto_'+aviso.timestamp;
+  if(sessionStorage.getItem(claveVisto))return;
+  sessionStorage.setItem(claveVisto,'1');
   document.getElementById('recordatorioBox').style.display='block';
   if(Notification.permission==='granted'){
-    new Notification('⚠️ Registrá tus eventos',{
-      body:aviso.mensaje||'Tu jefe te pide que registres tus eventos de hoy.',
-      requireInteraction:true,
-      icon:'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">⚠️</text></svg>'
-    });
+    if('serviceWorker' in navigator){
+      navigator.serviceWorker.ready.then(reg=>{
+        reg.showNotification('⚠️ Registrá tus eventos',{
+          body:aviso.mensaje||'Tu jefe te pide que registres tus eventos de hoy.',
+          requireInteraction:true,
+          icon:'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAABmJLR0QA/wD/AP+gvaeTAAAA3UlEQVR4nO3BMQEAAADCoPVP7WsIoAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAeAMBuAABHgAAAABJRU5ErkJggg==',
+          badge:'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='
+        });
+      }).catch(()=>{
+        new Notification('⚠️ Registrá tus eventos',{body:aviso.mensaje||'Tu jefe te pide que registres tus eventos de hoy.',requireInteraction:true});
+      });
+    } else {
+      new Notification('⚠️ Registrá tus eventos',{body:aviso.mensaje||'Tu jefe te pide que registres tus eventos de hoy.',requireInteraction:true});
+    }
   }
 });
 

@@ -539,16 +539,31 @@ await noSleep.enable();
 onValue(ref(db,'avisos/'+choferIdActual),snap=>{
   const aviso=snap.val();
   if(!aviso||!aviso.timestamp)return;
-  // Mostrar si el aviso es de hoy (últimas 8 horas)
+  // Solo mostrar si es de hoy (últimas 8h) y NO fue visto ya por este chofer
   const diffMin=(Date.now()-aviso.timestamp)/60000;
   if(diffMin>480)return;
+  const claveVisto='aviso_visto_'+aviso.timestamp;
+  if(sessionStorage.getItem(claveVisto))return; // ya se mostró en esta sesión
+  sessionStorage.setItem(claveVisto,'1'); // marcar como visto
+  // Mostrar banner en pantalla
   document.getElementById('recordatorioBox').style.display='block';
+  // Notificación vía Service Worker (más confiable en móvil)
   if(Notification.permission==='granted'){
-    new Notification('⚠️ Registrá tus eventos',{
-      body:aviso.mensaje||'Tu jefe te pide que registres tus eventos de hoy.',
-      requireInteraction:true,
-      icon:'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">⚠️</text></svg>'
-    });
+    if('serviceWorker' in navigator){
+      navigator.serviceWorker.ready.then(reg=>{
+        reg.showNotification('⚠️ Registrá tus eventos',{
+          body:aviso.mensaje||'Tu jefe te pide que registres tus eventos de hoy.',
+          requireInteraction:true,
+          icon:'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAABmJLR0QA/wD/AP+gvaeTAAAA3UlEQVR4nO3BMQEAAADCoPVP7WsIoAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAeAMBuAABHgAAAABJRU5ErkJggg==',
+          badge:'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='
+        });
+      }).catch(()=>{
+        // Fallback si el SW no está listo
+        new Notification('⚠️ Registrá tus eventos',{body:aviso.mensaje||'Tu jefe te pide que registres tus eventos de hoy.',requireInteraction:true});
+      });
+    } else {
+      new Notification('⚠️ Registrá tus eventos',{body:aviso.mensaje||'Tu jefe te pide que registres tus eventos de hoy.',requireInteraction:true});
+    }
   }
 });
 
